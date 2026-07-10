@@ -1,0 +1,249 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 
+outline gray: #333333 
+
+primary gold: #56461a
+bright accent gold: #c28b00
+
+primary text: neutral-50
+secondary text: neutral-200
+
+hover-card bg gold: #56411a50
+hover-card border gold: #c28b00bb
+*/
+
+@layer base {
+    :root {
+        --background: 0 0% 100%;
+        --foreground: 0 0% 3.9%;
+        --card: 0 0% 100%;
+        --card-foreground: 0 0% 3.9%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 0 0% 3.9%;
+        --primary: 0 0% 9%;
+        --primary-foreground: 0 0% 98%;
+        --secondary: 0 0% 96.1%;
+        --secondary-foreground: 0 0% 9%;
+        --muted: 0 0% 96.1%;
+        --muted-foreground: 0 0% 45.1%;
+        --accent: 0 0% 96.1%;
+        --accent-foreground: 0 0% 9%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 0 0% 89.8%;
+        --input: 0 0% 89.8%;
+        --ring: 0 0% 3.9%;
+        --radius: 0.5rem;
+    }
+
+    .dark {
+        --background: 0 0% 0%;
+        --foreground: 0 0% 98%;
+        --card: 0 0% 3.9%;
+        --card-foreground: 0 0% 98%;
+        --popover: 0 0% 3.9%;
+        --popover-foreground: 0 0% 98%;
+        --primary: 0 0% 98%;
+        --primary-foreground: 0 0% 9%;
+        --secondary: 0 0% 14.9%;
+        --secondary-foreground: 0 0% 98%;
+        --muted: 0 0% 14.9%;
+        --muted-foreground: 0 0% 63.9%;
+        --accent: 0 0% 14.9%;
+        --accent-foreground: 0 0% 98%;
+        --destructive: 0 62.8% 55%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 0 0% 14.9%;
+        --input: 0 0% 14.9%;
+        --ring: 0 0% 83.1%;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+html,
+body {
+    overscroll-behavior: none;
+}
+
+@media all and (min-width: 0px) and (max-width: 639px) {
+    .teamPic {
+        opacity: 40%;
+    }
+}
+
+@media all and (min-width: 640px) {
+    .teamPic {
+        filter: grayscale(25%);
+        transition: filter 0.2s;
+        transition-timing-function: ease-in-out;
+        opacity: 30%;
+    }
+
+    .execCard:hover .teamPic {
+        filter: grayscale(0%);
+        opacity: 50%;
+    }
+}
+
+.memberCard {
+    position: relative;
+}
+
+.memberCard:hover::before {
+    opacity: 1;
+}
+
+.memberCard::before {
+    background: radial-gradient(
+        600px circle at var(--mouse-x) var(--mouse-y),
+        #56411a50 0%,
+        rgba(0, 0, 0, 0) 30%
+    );
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.2s, delay 0.2s;
+
+    z-index: 3;
+}
+
+.memberCard .memberCardBorder {
+    background: radial-gradient(
+        600px circle at var(--mouse-x) var(--mouse-y),
+        #c28b00bb 0%,
+        rgba(0, 0, 0, 0) 40%
+    );
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.2s, delay 0.2s;
+
+    z-index: 1;
+}
+
+.memberCards:hover .memberCard .memberCardBorder {
+    opacity: 1;
+}
+
+.memberCardContent {
+    position: relative;
+    z-index: 2;
+}
+
+.projCard {
+    position: relative;
+}
+
+.projCard:hover::before {
+    opacity: 1;
+}
+
+.projCard::before {
+    background: radial-gradient(
+        800px circle at var(--mouse-x) var(--mouse-y),
+        #56411a50 0%,
+        rgba(0, 0, 0, 0) 30%
+    );
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.2s, delay 0.2s;
+
+    z-index: 3;
+}
+
+.projCard .projCardBorder {
+    background: radial-gradient(
+        800px circle at var(--mouse-x) var(--mouse-y),
+        #c28b00bb 0%,
+        rgba(0, 0, 0, 0) 30%
+    );
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    opacity: 0;
+    transition: opacity 0.2s, delay 0.2s;
+
+    z-index: 1;
+}
+
+.projCardContent {
+    position: relative;
+    z-index: 2;
+}
+
+.projCards:hover .projCard .projCardBorder {
+    opacity: 1;
+}
+
+.companyList {
+    animation: infScroll 20s linear infinite;
+    filter: brightness(95%);
+}
+
+@keyframes infScroll {
+    from {
+        transform: translateX(0);
+    }
+    to {
+        transform: translateX(-100%);
+    }
+}
+
+.graphPath {
+    stroke-dasharray: 5000;
+    stroke-dashoffset: 0;
+    animation: graphDash 5s linear;
+}
+
+@keyframes graphDash {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: 3100;
+    }
+}
+
+@keyframes dash {
+    from {
+        stroke-dashoffset: 0;
+    }
+    to {
+        stroke-dashoffset: 2000;
+    }
+}
