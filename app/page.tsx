@@ -19,7 +19,7 @@ import type {
   SpreadResponse,
   SignalLevel,
 } from "@/lib/correlationTypes";
-import { getSignalLevel, PAIRS } from "@/lib/correlationTypes";
+import { getSignalLevel } from "@/lib/correlationTypes";
 
 const API_BASE = "/api";
 
@@ -108,30 +108,6 @@ export default function CorrelationTradingPage() {
       fetchAnalysis(selectedPair);
     }
   }, [selectedPair, dateRange, spreadType, fetchAnalysis]);
-
-  // Pre-fetch signals for all pairs on mount
-  useEffect(() => {
-    async function prefetch() {
-      const signals: Record<string, SignalLevel> = {};
-      for (const pair of PAIRS) {
-        try {
-          const res = await fetch(
-            `${API_BASE}/spread?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&start=${yearsAgo(1)}&end=${new Date().toISOString().split("T")[0]}&spread_type=log_ratio`
-          );
-          if (res.ok) {
-            const data: SpreadResponse = await res.json();
-            signals[`${pair.ticker_a}_${pair.ticker_b}`] = getSignalLevel(
-              data.metrics.current_zscore
-            );
-          }
-        } catch {
-          // silently skip
-        }
-      }
-      setPairSignals((prev) => ({ ...prev, ...signals }));
-    }
-    prefetch();
-  }, []);
 
   const handleSelect = (pair: PairInfo) => {
     setSelectedPair(pair);
