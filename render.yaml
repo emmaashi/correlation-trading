@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: correlation-trading
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: CORRELATION_API_HOST
+        fromService:
+          name: correlation-api
+          type: web
+          envVarKey: RENDER_EXTERNAL_HOSTNAME
+
+  - type: web
+    name: correlation-api
+    runtime: python
+    rootDir: correlation-api
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --timeout 90 app:app
+    healthCheckPath: /api/pairs
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.0
