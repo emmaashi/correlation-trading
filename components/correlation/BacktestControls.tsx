@@ -58,6 +58,11 @@ export default function BacktestControls({
       setLocalError("Please fill in all parameters before running the backtest.");
       return;
     }
+
+    if ((params.exit_z as number) >= (params.entry_z as number)) {
+      setLocalError("Exit Z-Score must be strictly less than Entry Z-Score.");
+      return;
+    }
     
     setLocalError(null);
     onRunBacktest({
