@@ -106,3 +106,43 @@ export function getSignalColor(level: SignalLevel): string {
   if (level === "watch") return "#f59e0b";
   return "#22c55e";
 }
+
+export interface TradeLog {
+  type: "LONG" | "SHORT";
+  entry_date: string;
+  exit_date: string;
+  entry_price_a: number;
+  entry_price_b: number;
+  exit_price_a: number;
+  exit_price_b: number;
+  entry_spread: number;
+  exit_spread: number;
+  pnl_val: number;
+  pnl_pct: number;
+  holding_period: number;
+}
+
+export interface BacktestMetrics {
+  sharpe: number;
+  max_drawdown: number;
+  num_trades: number;
+  win_rate: number;
+}
+
+export interface EquityCurvePoint {
+  date: string;
+  value: number;
+}
+
+export interface BacktestResponse {
+  ticker_a: string;
+  ticker_b: string;
+  window: number;
+  entry_z: number;
+  exit_z: number;
+  hedge_ratio: number;
+  spread_type: string;
+  metrics: BacktestMetrics;
+  equity_curve: EquityCurvePoint[];
+  trade_log: TradeLog[];
+}
