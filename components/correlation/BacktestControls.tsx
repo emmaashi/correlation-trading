@@ -30,7 +30,7 @@ export default function BacktestControls({
     exit_z: number | "";
     hedge_ratio: number | "";
   }>({
-    window: 20,
+    window: 60,
     entry_z: 2.0,
     exit_z: 0.0,
     hedge_ratio: 1.0,
