@@ -72,7 +72,7 @@ export default function PairSelector({
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 pt-6 sm:pt-8">
       <div className="text-center space-y-2">
         <h1 className="text-3xl sm:text-4xl font-bold text-neutral-50 tracking-tight">
           Correlation Trading
