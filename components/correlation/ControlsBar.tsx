@@ -46,7 +46,7 @@ export default function ControlsBar({
       className="sticky z-30 -mx-6 sm:-mx-0"
       style={{ top: "var(--fixed-header-offset, 0px)" }}
     >
-      <div className="backdrop-blur-xl bg-black/70 border-b border-white/[0.06] px-4 sm:px-6 py-3">
+      <div className="backdrop-blur-xl bg-black/70 border-b border-white/[0.06] px-6 sm:px-0 py-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 max-w-6xl mx-auto">
           {/* Back + pair info */}
           <div className="flex items-center gap-3 min-w-0 flex-shrink-0">
