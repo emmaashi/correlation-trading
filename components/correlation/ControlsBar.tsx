@@ -1,6 +1,7 @@
 "use client";
 
 import { PairInfo, SECTOR_COLORS } from "@/lib/correlationTypes";
+import { todayISO, yearsAgoISO } from "@/lib/dateUtils";
 
 interface ControlsBarProps {
   pair: PairInfo;
@@ -26,12 +27,6 @@ const SPREAD_TYPES = [
   { value: "difference", label: "Difference" },
 ];
 
-function yearsAgo(n: number): string {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - n);
-  return d.toISOString().split("T")[0];
-}
-
 export default function ControlsBar({
   pair,
   dateRange,
@@ -41,7 +36,9 @@ export default function ControlsBar({
   onBack,
   loading,
 }: ControlsBarProps) {
-  const activePreset = PRESETS.find((p) => dateRange.start === yearsAgo(p.years));
+  const activePreset = PRESETS.find(
+    (p) => dateRange.start === yearsAgoISO(p.years)
+  );
   const sectorColor = SECTOR_COLORS[pair.sector] ?? "#888";
 
   return (
@@ -85,8 +82,8 @@ export default function ControlsBar({
                 key={p.label}
                 onClick={() =>
                   onDateRangeChange({
-                    start: yearsAgo(p.years),
-                    end: new Date().toISOString().split("T")[0],
+                    start: yearsAgoISO(p.years),
+                    end: todayISO(),
                   })
                 }
                 className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
