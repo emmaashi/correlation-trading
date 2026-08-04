@@ -1,6 +1,11 @@
 import os
+import threading
 import pandas as pd
 import yfinance as yf
+
+CACHE_VERSION = "v2"
+DOWNLOAD_LOCK = threading.Lock()
+
 
 def get_data_path(ticker, start_date, end_date, folder="data/raw"):
     """
@@ -15,8 +20,71 @@ def get_data_path(ticker, start_date, end_date, folder="data/raw"):
     Returns:
         str: Full file path for the cached CSV file.
     """
-    filename = f"{ticker}_{start_date}_to_{end_date}_raw.csv"
+    filename = f"{ticker}_{start_date}_to_{end_date}_{CACHE_VERSION}_raw.csv"
     return os.path.join(folder, filename)
+
+
+def _cache_is_valid(df, ticker, start_date, end_date):
+    required_columns = {"Date", "Close", "Ticker"}
+    if df.empty or not required_columns.issubset(df.columns):
+        return False
+
+    dates = pd.to_datetime(df["Date"], errors="coerce")
+    closes = pd.to_numeric(df["Close"], errors="coerce")
+    tickers = df["Ticker"].astype(str).str.upper()
+
+    if dates.isna().any() or closes.isna().all():
+        return False
+    if not (tickers == ticker.upper()).all():
+        return False
+
+    requested_start = pd.to_datetime(start_date)
+    requested_end = pd.to_datetime(end_date)
+    first_date = dates.min()
+    last_date = dates.max()
+
+    # Allow a few calendar days for weekends, holidays, and yfinance's
+    # exclusive end-date behavior. Long Max ranges can legitimately start late
+    # for newer listings, such as BJ's 2018 IPO.
+    requested_days = max((requested_end - requested_start).days, 1)
+    actual_days = max((last_date - first_date).days, 0)
+    long_range_with_later_listing = (
+        requested_days >= 365 * 7 and actual_days / requested_days >= 0.75
+    )
+
+    if first_date > requested_start + pd.Timedelta(days=7) and not long_range_with_later_listing:
+        return False
+    if last_date < requested_end - pd.Timedelta(days=7):
+        return False
+
+    return True
+
+
+def _normalize_downloaded_data(df, ticker):
+    if isinstance(df.columns, pd.MultiIndex):
+        df.columns = df.columns.get_level_values(0)
+
+    df = df.reset_index()
+    if "Date" not in df.columns:
+        df = df.rename(columns={df.columns[0]: "Date"})
+
+    df = df.loc[:, ~df.columns.duplicated()]
+    close_col = df["Close"]
+    if isinstance(close_col, pd.DataFrame):
+        close_col = close_col.iloc[:, 0]
+
+    return pd.DataFrame({"Date": df["Date"], "Close": close_col, "Ticker": ticker})
+
+
+def _write_cache_atomic(df, path):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    temp_path = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
+    try:
+        df.to_csv(temp_path, index=False)
+        os.replace(temp_path, path)
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
 
 
 def get_stock_data(ticker, start_date, end_date, cache=True):
@@ -38,31 +106,28 @@ def get_stock_data(ticker, start_date, end_date, cache=True):
         cached = cached.loc[:, ~cached.columns.duplicated()]
         if isinstance(cached["Close"], pd.DataFrame):
             cached["Close"] = cached["Close"].iloc[:, 0]
-        return cached[["Date", "Close", "Ticker"]]
+        cached = cached[["Date", "Close", "Ticker"]]
+        if _cache_is_valid(cached, ticker, start_date, end_date):
+            return cached
 
-    df = yf.download(ticker, start=start_date, end=end_date, progress=False, auto_adjust=False)
+    # yfinance uses shared module-level state during downloads. Concurrent
+    # single-ticker downloads can leak one ticker's data into another result.
+    with DOWNLOAD_LOCK:
+        downloaded = yf.download(
+            ticker,
+            start=start_date,
+            end=end_date,
+            progress=False,
+            auto_adjust=False,
+            threads=False,
+        ).copy()
 
-    # Flatten MultiIndex columns — newer yfinance returns them even for single-ticker downloads
-    if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
-
-    # Move the date out of the index. Newer yfinance leaves the index unnamed,
-    # so reset_index can produce a column called "index" rather than "Date".
-    df = df.reset_index()
-    if "Date" not in df.columns:
-        df = df.rename(columns={df.columns[0]: "Date"})
-
-    # Deduplicate columns and extract a single Close series
-    df = df.loc[:, ~df.columns.duplicated()]
-    close_col = df["Close"]
-    if isinstance(close_col, pd.DataFrame):
-        close_col = close_col.iloc[:, 0]
-
-    df = pd.DataFrame({"Date": df["Date"], "Close": close_col, "Ticker": ticker})
+    df = _normalize_downloaded_data(downloaded, ticker)
+    if not _cache_is_valid(df, ticker, start_date, end_date):
+        raise ValueError(f"Downloaded data for {ticker} does not cover the requested date range")
     
     if cache:
-        os.makedirs("data/raw", exist_ok=True)
-        df.to_csv(path, index=False)
+        _write_cache_atomic(df, path)
     
     return df
 

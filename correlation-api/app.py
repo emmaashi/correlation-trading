@@ -105,6 +105,7 @@ def get_correlation():
 
 @app.route("/api/spread", methods=["GET"])
 def get_spread():
+    window = request.args.get("window", 60, type=int)
     ticker_a = request.args.get("ticker_a", "").upper()
     ticker_b = request.args.get("ticker_b", "").upper()
     start = request.args.get("start", "2023-01-01")
@@ -116,7 +117,13 @@ def get_spread():
 
     try:
         df = load_pair_data(ticker_a, ticker_b, start, end)
-        spread_df, metrics = calculate_spread_metrics(df, ticker_a, ticker_b, spread_type)
+        spread_df, metrics = calculate_spread_metrics(
+            df,
+            ticker_a,
+            ticker_b,
+            spread_type=spread_type,
+            window=window,
+        )
 
         price_a = spread_df[f"{ticker_a}_price"]
         price_b = spread_df[f"{ticker_b}_price"]

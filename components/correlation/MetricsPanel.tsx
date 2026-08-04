@@ -16,6 +16,9 @@ export default function MetricsPanel({ metrics }: MetricsPanelProps) {
   const level = getSignalLevel(zscore);
   const direction = getSignalDirection(zscore);
   const signalColor = getSignalColor(level);
+  const zscoreWindowLabel = metrics.zscore_window ? `${metrics.zscore_window}D` : "Full";
+  const currentMean = metrics.current_mean ?? metrics.mean;
+  const currentStd = metrics.current_std ?? metrics.std;
 
   const signalLabel =
     direction === "long" ? "Long" : direction === "short" ? "Short" : "Hold";
@@ -33,7 +36,7 @@ export default function MetricsPanel({ metrics }: MetricsPanelProps) {
 
         {/* Z-Score */}
         <div className="flex items-center gap-1.5 px-3">
-          <span className="text-[10px] uppercase tracking-widest text-neutral-500">Z-Score</span>
+          <span className="text-[10px] uppercase tracking-widest text-neutral-500">{zscoreWindowLabel} Z-Score</span>
           <span className="text-sm font-mono tabular-nums font-semibold" style={{ color: signalColor }}>
             {zscore.toFixed(3)}
           </span>
@@ -48,7 +51,7 @@ export default function MetricsPanel({ metrics }: MetricsPanelProps) {
             {metrics.current.toFixed(4)}
           </span>
           <span className="text-[10px] text-neutral-500">
-            {metrics.current > metrics.mean ? "↑" : "↓"}
+            {metrics.current > currentMean ? "↑" : "↓"}
           </span>
         </div>
 
@@ -56,16 +59,16 @@ export default function MetricsPanel({ metrics }: MetricsPanelProps) {
 
         {/* Mean */}
         <div className="flex items-center gap-1.5 px-3">
-          <span className="text-[10px] uppercase tracking-widest text-neutral-500">Mean</span>
-          <span className="text-sm font-mono tabular-nums text-neutral-300">{metrics.mean.toFixed(4)}</span>
+          <span className="text-[10px] uppercase tracking-widest text-neutral-500">{zscoreWindowLabel} Mean</span>
+          <span className="text-sm font-mono tabular-nums text-neutral-300">{currentMean.toFixed(4)}</span>
         </div>
 
         <Divider />
 
         {/* Std Dev */}
         <div className="flex items-center gap-1.5 px-3">
-          <span className="text-[10px] uppercase tracking-widest text-neutral-500">Std</span>
-          <span className="text-sm font-mono tabular-nums text-neutral-300">{metrics.std.toFixed(4)}</span>
+          <span className="text-[10px] uppercase tracking-widest text-neutral-500">{zscoreWindowLabel} Std</span>
+          <span className="text-sm font-mono tabular-nums text-neutral-300">{currentStd.toFixed(4)}</span>
         </div>
 
         <Divider />
