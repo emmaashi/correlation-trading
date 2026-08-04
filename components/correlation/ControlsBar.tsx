@@ -45,7 +45,10 @@ export default function ControlsBar({
   const sectorColor = SECTOR_COLORS[pair.sector] ?? "#888";
 
   return (
-    <div className="sticky top-0 z-40 -mx-6 sm:-mx-0">
+    <div
+      className="sticky z-30 -mx-6 sm:-mx-0"
+      style={{ top: "var(--fixed-header-offset, 0px)" }}
+    >
       <div className="backdrop-blur-xl bg-black/70 border-b border-white/[0.06] px-4 sm:px-6 py-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 max-w-6xl mx-auto">
           {/* Back + pair info */}
