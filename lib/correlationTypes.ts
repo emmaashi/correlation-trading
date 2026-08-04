@@ -37,7 +37,10 @@ export interface SpreadMetrics {
   min: number;
   max: number;
   current: number;
+  current_mean?: number;
+  current_std?: number;
   current_zscore: number;
+  zscore_window?: number | null;
 }
 
 export interface SpreadResponse {
