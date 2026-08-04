@@ -43,11 +43,6 @@ const TOOLTIP_LABEL_STYLE = {
   marginBottom: 8,
 };
 
-const TOOLTIP_ROW_STYLE = {
-  color: "#22c55e",
-  lineHeight: 1.2,
-};
-
 const AXIS_TICK = { fill: "#737373", fontSize: 10 };
 const AXIS_LINE = { stroke: "rgba(255,255,255,0.06)" };
 const GRID = "rgba(255,255,255,0.04)";
@@ -60,24 +55,41 @@ type ChartTooltipProps = {
   active?: boolean;
   label?: string | number;
   payload?: ChartTooltipPayload[];
+  rows: Array<{
+    color: string;
+    dataKey: string;
+    label: string;
+    precision: number;
+  }>;
 };
 
 function getFiniteNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
-function ZScoreTooltip({ active, label, payload }: ChartTooltipProps) {
+function ChartValueTooltip({ active, label, payload, rows }: ChartTooltipProps) {
   if (!active || !payload?.length) return null;
 
-  const zscore = getFiniteNumber(payload[0]?.payload?.zscore);
-  if (zscore === null) return null;
+  const point = payload[0]?.payload;
+  const values = rows.flatMap((row) => {
+    const value = getFiniteNumber(point?.[row.dataKey]);
+    return value === null ? [] : [{ ...row, value }];
+  });
+
+  if (!values.length) return null;
 
   return (
     <div style={TOOLTIP_STYLE}>
       <div style={TOOLTIP_LABEL_STYLE}>
         Date: {formatChartTooltipDate(String(label))}
       </div>
-      <div style={TOOLTIP_ROW_STYLE}>Z-Score: {zscore.toFixed(3)}</div>
+      <div style={{ display: "grid", gap: 6 }}>
+        {values.map((row) => (
+          <div key={row.dataKey} style={{ color: row.color, lineHeight: 1.2 }}>
+            {row.label}: {row.value.toFixed(row.precision)}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -127,9 +139,23 @@ export default function SpreadAnalysisCharts({
               />
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                labelFormatter={(l) =>
-                  `Date: ${formatChartTooltipDate(String(l))}`
+                content={
+                  <ChartValueTooltip
+                    rows={[
+                      {
+                        color: "#c28b00",
+                        dataKey: "norm_a",
+                        label: tickerA,
+                        precision: 2,
+                      },
+                      {
+                        color: "#60a5fa",
+                        dataKey: "norm_b",
+                        label: tickerB,
+                        precision: 2,
+                      },
+                    ]}
+                  />
                 }
               />
               <Legend
@@ -179,14 +205,18 @@ export default function SpreadAnalysisCharts({
               />
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                labelFormatter={(l) =>
-                  `Date: ${formatChartTooltipDate(String(l))}`
+                content={
+                  <ChartValueTooltip
+                    rows={[
+                      {
+                        color: "#c28b00",
+                        dataKey: "spread",
+                        label: "Spread",
+                        precision: 4,
+                      },
+                    ]}
+                  />
                 }
-                formatter={(value: number, name: string) => {
-                  if (name === "spread") return [value?.toFixed(4), "Spread"];
-                  return [null, ""];
-                }}
               />
               {/* ±2σ band */}
               <ReferenceLine y={mean + 2 * std} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1} strokeOpacity={0.5} />
@@ -253,7 +283,18 @@ export default function SpreadAnalysisCharts({
               />
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
-                content={<ZScoreTooltip />}
+                content={
+                  <ChartValueTooltip
+                    rows={[
+                      {
+                        color: "#22c55e",
+                        dataKey: "zscore",
+                        label: "Z-Score",
+                        precision: 3,
+                      },
+                    ]}
+                  />
+                }
               />
               {/* Thresholds */}
               <ReferenceLine y={2} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1.5} strokeOpacity={0.7} label={{ value: "+2σ", position: "right", fill: "#ef4444", fontSize: 10 }} />
