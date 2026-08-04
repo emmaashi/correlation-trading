@@ -20,20 +20,15 @@ import type {
   SignalLevel,
 } from "@/lib/correlationTypes";
 import { getSignalLevel } from "@/lib/correlationTypes";
+import { todayISO, yearsAgoISO } from "@/lib/dateUtils";
 
 const API_BASE = "/api";
-
-function yearsAgo(n: number): string {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - n);
-  return d.toISOString().split("T")[0];
-}
 
 export default function CorrelationTradingPage() {
   const [selectedPair, setSelectedPair] = useState<PairInfo | null>(null);
   const [dateRange, setDateRange] = useState({
-    start: yearsAgo(3),
-    end: new Date().toISOString().split("T")[0],
+    start: yearsAgoISO(3),
+    end: todayISO(),
   });
   const [spreadType, setSpreadType] = useState("log_ratio");
   const [loading, setLoading] = useState(false);

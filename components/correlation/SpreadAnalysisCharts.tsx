@@ -14,6 +14,10 @@ import {
   Legend,
 } from "recharts";
 import { SpreadPoint, SpreadMetrics } from "@/lib/correlationTypes";
+import {
+  formatChartAxisDate,
+  formatChartTooltipDate,
+} from "@/lib/dateUtils";
 
 interface SpreadAnalysisChartsProps {
   data: SpreadPoint[];
@@ -58,11 +62,6 @@ type ChartTooltipProps = {
   payload?: ChartTooltipPayload[];
 };
 
-function formatDate(d: string) {
-  const date = new Date(d);
-  return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
-}
-
 function getFiniteNumber(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
@@ -75,12 +74,13 @@ function ZScoreTooltip({ active, label, payload }: ChartTooltipProps) {
 
   return (
     <div style={TOOLTIP_STYLE}>
-      <div style={TOOLTIP_LABEL_STYLE}>Date: {label}</div>
+      <div style={TOOLTIP_LABEL_STYLE}>
+        Date: {formatChartTooltipDate(String(label))}
+      </div>
       <div style={TOOLTIP_ROW_STYLE}>Z-Score: {zscore.toFixed(3)}</div>
     </div>
   );
 }
-
 export default function SpreadAnalysisCharts({
   data,
   metrics,
@@ -102,8 +102,6 @@ export default function SpreadAnalysisCharts({
     zZero: 0,
   }));
 
-  const everyN = Math.max(1, Math.floor(data.length / 12));
-
   return (
     <div className="space-y-4">
       {/* Normalized Prices */}
@@ -123,13 +121,16 @@ export default function SpreadAnalysisCharts({
                 tick={AXIS_TICK}
                 axisLine={AXIS_LINE}
                 tickLine={false}
-                tickFormatter={formatDate}
-                interval={everyN}
+                tickFormatter={formatChartAxisDate}
+                interval="preserveStartEnd"
+                minTickGap={40}
               />
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
-                labelFormatter={(l) => `Date: ${l}`}
+                labelFormatter={(l) =>
+                  `Date: ${formatChartTooltipDate(String(l))}`
+                }
               />
               <Legend
                 wrapperStyle={{ fontSize: 11, color: "#a3a3a3" }}
@@ -172,13 +173,16 @@ export default function SpreadAnalysisCharts({
                 tick={AXIS_TICK}
                 axisLine={AXIS_LINE}
                 tickLine={false}
-                tickFormatter={formatDate}
-                interval={everyN}
+                tickFormatter={formatChartAxisDate}
+                interval="preserveStartEnd"
+                minTickGap={40}
               />
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
-                labelFormatter={(l) => `Date: ${l}`}
+                labelFormatter={(l) =>
+                  `Date: ${formatChartTooltipDate(String(l))}`
+                }
                 formatter={(value: number, name: string) => {
                   if (name === "spread") return [value?.toFixed(4), "Spread"];
                   return [null, ""];
@@ -243,8 +247,9 @@ export default function SpreadAnalysisCharts({
                 tick={AXIS_TICK}
                 axisLine={AXIS_LINE}
                 tickLine={false}
-                tickFormatter={formatDate}
-                interval={everyN}
+                tickFormatter={formatChartAxisDate}
+                interval="preserveStartEnd"
+                minTickGap={40}
               />
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip

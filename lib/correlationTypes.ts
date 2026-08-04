@@ -99,8 +99,8 @@ export function getSignalLevel(zscore: number): SignalLevel {
 }
 
 export function getSignalDirection(zscore: number): SignalDirection {
-  if (zscore > 2) return "short";
-  if (zscore < -2) return "long";
+  if (zscore >= 2) return "short";
+  if (zscore <= -2) return "long";
   return "hold";
 }
 

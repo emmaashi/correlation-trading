@@ -3,8 +3,13 @@ import threading
 import pandas as pd
 import yfinance as yf
 
-CACHE_VERSION = "v2"
+CACHE_VERSION = "v3"
 DOWNLOAD_LOCK = threading.Lock()
+
+
+def _exclusive_download_end(end_date):
+    """Convert the API's inclusive end date to yfinance's exclusive end date."""
+    return (pd.to_datetime(end_date) + pd.Timedelta(days=1)).date().isoformat()
 
 
 def get_data_path(ticker, start_date, end_date, folder="data/raw"):
@@ -43,9 +48,8 @@ def _cache_is_valid(df, ticker, start_date, end_date):
     first_date = dates.min()
     last_date = dates.max()
 
-    # Allow a few calendar days for weekends, holidays, and yfinance's
-    # exclusive end-date behavior. Long Max ranges can legitimately start late
-    # for newer listings, such as BJ's 2018 IPO.
+    # Allow a few calendar days for weekends and holidays. Long Max ranges can
+    # legitimately start late for newer listings, such as BJ's 2018 IPO.
     requested_days = max((requested_end - requested_start).days, 1)
     actual_days = max((last_date - first_date).days, 0)
     long_range_with_later_listing = (
@@ -116,7 +120,7 @@ def get_stock_data(ticker, start_date, end_date, cache=True):
         downloaded = yf.download(
             ticker,
             start=start_date,
-            end=end_date,
+            end=_exclusive_download_end(end_date),
             progress=False,
             auto_adjust=False,
             threads=False,

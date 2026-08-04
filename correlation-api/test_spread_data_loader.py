@@ -109,6 +109,28 @@ class TestSpreadDataLoader(unittest.TestCase):
         self.assertEqual(max_active, 1)
         self.assertEqual([df["Ticker"].iloc[0] for df in results], ["AAA", "BBB", "CCC", "DDD"])
 
+    def test_stock_download_includes_requested_end_date(self):
+        from analysis.data_loader import get_stock_data
+
+        dates = pd.date_range(start="2023-01-02", end="2023-01-06", freq="B")
+        downloaded = pd.DataFrame(
+            {"Close": np.arange(len(dates), dtype=float) + 100.0},
+            index=dates,
+        )
+
+        with patch(
+            "analysis.data_loader.yf.download",
+            return_value=downloaded,
+        ) as mock_download:
+            get_stock_data(
+                "MSFT",
+                "2023-01-01",
+                "2023-01-06",
+                cache=False,
+            )
+
+        self.assertEqual(mock_download.call_args.kwargs["end"], "2023-01-07")
+
 
 if __name__ == "__main__":
     unittest.main()
