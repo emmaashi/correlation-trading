@@ -38,7 +38,7 @@ export default function LagCorrelationChart({
         Lagged Correlation
       </h3>
       <p className="text-xs text-neutral-500 mb-4">
-        Pearson correlation at different day-lags between {tickerA} and {tickerB}
+        Pearson correlation of daily log returns at different lags between {tickerA} and {tickerB}
       </p>
 
       <div className="h-[300px]">

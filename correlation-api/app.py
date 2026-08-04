@@ -20,6 +20,7 @@ RISK_LOOKBACK_DAYS = 540
 PAIRS = [
     {"ticker_a": "MSFT",  "ticker_b": "GOOGL", "name_a": "Microsoft",         "name_b": "Google",            "sector": "Technology"},
     {"ticker_a": "AMD",   "ticker_b": "NVDA",  "name_a": "AMD",               "name_b": "NVIDIA",            "sector": "Technology"},
+    {"ticker_a": "DDOG",  "ticker_b": "NET",   "name_a": "Datadog",           "name_b": "Cloudflare",         "sector": "Technology"},
     {"ticker_a": "CVS",   "ticker_b": "JNJ",   "name_a": "CVS Health",        "name_b": "Johnson & Johnson", "sector": "Healthcare"},
     {"ticker_a": "PFE",   "ticker_b": "MRK",   "name_a": "Pfizer",            "name_b": "Merck",             "sector": "Healthcare"},
     {"ticker_a": "CL",    "ticker_b": "KMB",   "name_a": "Colgate-Palmolive", "name_b": "Kimberly-Clark",    "sector": "Consumer"},
@@ -181,6 +182,7 @@ def get_risk_breakdown():
             "baseline_corr": _safe_float(breakdown["baseline_corr"]),
             "broken": bool(breakdown["broken"]),
             "broken_since": breakdown["broken_since"],
+            "breakdown_reason": breakdown["breakdown_reason"],
         })
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

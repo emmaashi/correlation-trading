@@ -21,6 +21,20 @@ function formatDate(value: string): string {
   }).format(new Date(year, month - 1, day));
 }
 
+function getBreakdownMessage(risk: RiskBreakdownResponse): string {
+  const subject = `${risk.ticker_a}/${risk.ticker_b}'s 60-day return correlation`;
+  if (risk.breakdown_reason === "relative_and_absolute") {
+    return `${subject} is below its historical baseline and the minimum threshold`;
+  }
+  if (risk.breakdown_reason === "relative") {
+    return `${subject} is below its historical baseline`;
+  }
+  if (risk.breakdown_reason === "absolute") {
+    return `${subject} is below the minimum threshold`;
+  }
+  return `${subject} crossed the configured breakdown threshold`;
+}
+
 export default function RiskWarningBanner({ risk }: RiskWarningBannerProps) {
   return (
     <div
@@ -37,8 +51,7 @@ export default function RiskWarningBanner({ risk }: RiskWarningBannerProps) {
               Correlation breakdown
             </p>
             <p className="mt-0.5 text-xs leading-5 text-neutral-500">
-              {risk.ticker_a}/{risk.ticker_b}&apos;s 60-day correlation is below
-              its historical baseline
+              {getBreakdownMessage(risk)}
               {risk.broken_since
                 ? ` since ${formatDate(risk.broken_since)}.`
                 : "."}

@@ -2,7 +2,7 @@ from typing import Optional
 
 import pandas as pd
 
-from analysis.util import clean_series
+from analysis.util import calculate_log_returns, clean_series
 
 
 ABSOLUTE_CORRELATION_FLOOR = 0.5
@@ -58,9 +58,27 @@ def detect_correlation_breakdown(
             "baseline_corr": None,
             "broken": False,
             "broken_since": None,
+            "breakdown_reason": None,
         }
 
-    rolling_corr = aligned["a"].rolling(window=recent_window).corr(aligned["b"])
+    returns = pd.concat(
+        [
+            calculate_log_returns(aligned["a"]).rename("a"),
+            calculate_log_returns(aligned["b"]).rename("b"),
+        ],
+        axis=1,
+    ).dropna()
+
+    if len(returns) < recent_window + 1:
+        return {
+            "current_corr": None,
+            "baseline_corr": None,
+            "broken": False,
+            "broken_since": None,
+            "breakdown_reason": None,
+        }
+
+    rolling_corr = returns["a"].rolling(window=recent_window).corr(returns["b"])
     min_baseline_periods = min(baseline_window, MIN_BASELINE_OBSERVATIONS)
     baseline_corr = (
         rolling_corr.shift(1)
@@ -83,6 +101,17 @@ def detect_correlation_breakdown(
 
     broken = bool(broken_points.iloc[-1]) if not broken_points.empty else False
     broken_since = None
+    breakdown_reason = None
+
+    if broken:
+        latest_relative = bool(relative_breakdown.iloc[-1])
+        latest_absolute = bool(absolute_breakdown.iloc[-1])
+        if latest_relative and latest_absolute:
+            breakdown_reason = "relative_and_absolute"
+        elif latest_relative:
+            breakdown_reason = "relative"
+        else:
+            breakdown_reason = "absolute"
 
     if broken:
         current_run = broken_points[broken_points].index
@@ -103,4 +132,5 @@ def detect_correlation_breakdown(
         "baseline_corr": current_baseline,
         "broken": broken,
         "broken_since": _iso_date(broken_since) if broken_since is not None else None,
+        "breakdown_reason": breakdown_reason,
     }
