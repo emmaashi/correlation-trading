@@ -48,6 +48,16 @@ const TOOLTIP_STYLE = {
   color: "#e5e5e5",
 };
 
+const TOOLTIP_LABEL_STYLE = {
+  color: "#f5f5f5",
+  fontWeight: 600,
+  marginBottom: 4,
+};
+
+const TOOLTIP_ITEM_STYLE = {
+  color: "#d4d4d4",
+};
+
 const AXIS_TICK = { fill: "#737373", fontSize: 10 };
 const AXIS_LINE = { stroke: "rgba(255,255,255,0.06)" };
 const GRID = "rgba(255,255,255,0.04)";
@@ -86,6 +96,8 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
+                labelStyle={TOOLTIP_LABEL_STYLE}
+                itemStyle={TOOLTIP_ITEM_STYLE}
                 formatter={(value: number) => [value, "Count"]}
                 labelFormatter={(label) => `Value: ${Number(label).toFixed(4)}`}
               />
@@ -139,6 +151,8 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
                 contentStyle={TOOLTIP_STYLE}
+                labelStyle={TOOLTIP_LABEL_STYLE}
+                itemStyle={TOOLTIP_ITEM_STYLE}
                 formatter={(value: number) => [value, "Count"]}
                 labelFormatter={(label) => `Z-Score: ${Number(label).toFixed(2)}`}
               />
