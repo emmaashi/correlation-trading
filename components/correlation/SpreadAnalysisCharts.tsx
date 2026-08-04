@@ -28,16 +28,57 @@ const TOOLTIP_STYLE = {
   borderRadius: "12px",
   backdropFilter: "blur(12px)",
   fontSize: 12,
+  lineHeight: 1.2,
+  padding: "10px 12px",
   color: "#e5e5e5",
+};
+
+const TOOLTIP_LABEL_STYLE = {
+  color: "#f5f5f5",
+  fontWeight: 600,
+  marginBottom: 8,
+};
+
+const TOOLTIP_ROW_STYLE = {
+  color: "#22c55e",
+  lineHeight: 1.2,
 };
 
 const AXIS_TICK = { fill: "#737373", fontSize: 10 };
 const AXIS_LINE = { stroke: "rgba(255,255,255,0.06)" };
 const GRID = "rgba(255,255,255,0.04)";
 
+type ChartTooltipPayload = {
+  payload?: Record<string, unknown>;
+};
+
+type ChartTooltipProps = {
+  active?: boolean;
+  label?: string | number;
+  payload?: ChartTooltipPayload[];
+};
+
 function formatDate(d: string) {
   const date = new Date(d);
   return date.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
+}
+
+function getFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function ZScoreTooltip({ active, label, payload }: ChartTooltipProps) {
+  if (!active || !payload?.length) return null;
+
+  const zscore = getFiniteNumber(payload[0]?.payload?.zscore);
+  if (zscore === null) return null;
+
+  return (
+    <div style={TOOLTIP_STYLE}>
+      <div style={TOOLTIP_LABEL_STYLE}>Date: {label}</div>
+      <div style={TOOLTIP_ROW_STYLE}>Z-Score: {zscore.toFixed(3)}</div>
+    </div>
+  );
 }
 
 export default function SpreadAnalysisCharts({
@@ -207,9 +248,7 @@ export default function SpreadAnalysisCharts({
               />
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                labelFormatter={(l) => `Date: ${l}`}
-                formatter={(value: number) => [value?.toFixed(3), "Z-Score"]}
+                content={<ZScoreTooltip />}
               />
               {/* Thresholds */}
               <ReferenceLine y={2} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1.5} strokeOpacity={0.7} label={{ value: "+2σ", position: "right", fill: "#ef4444", fontSize: 10 }} />

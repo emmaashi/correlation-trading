@@ -45,22 +45,63 @@ const TOOLTIP_STYLE = {
   borderRadius: "12px",
   backdropFilter: "blur(12px)",
   fontSize: 12,
+  lineHeight: 1.2,
+  padding: "10px 12px",
   color: "#e5e5e5",
 };
 
 const TOOLTIP_LABEL_STYLE = {
   color: "#f5f5f5",
   fontWeight: 600,
-  marginBottom: 4,
+  marginBottom: 8,
 };
 
-const TOOLTIP_ITEM_STYLE = {
+const TOOLTIP_ROW_STYLE = {
   color: "#d4d4d4",
+  lineHeight: 1.2,
 };
 
 const AXIS_TICK = { fill: "#737373", fontSize: 10 };
 const AXIS_LINE = { stroke: "rgba(255,255,255,0.06)" };
 const GRID = "rgba(255,255,255,0.04)";
+
+type HistogramTooltipPayload = {
+  value?: number | string | null;
+};
+
+type HistogramTooltipProps = {
+  active?: boolean;
+  label?: string | number;
+  payload?: HistogramTooltipPayload[];
+  labelPrefix: string;
+  precision: number;
+};
+
+function getFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function HistogramTooltip({
+  active,
+  label,
+  payload,
+  labelPrefix,
+  precision,
+}: HistogramTooltipProps) {
+  if (!active || !payload?.length) return null;
+
+  const count = getFiniteNumber(payload[0]?.value);
+  if (count === null) return null;
+
+  return (
+    <div style={TOOLTIP_STYLE}>
+      <div style={TOOLTIP_LABEL_STYLE}>
+        {labelPrefix}: {Number(label).toFixed(precision)}
+      </div>
+      <div style={TOOLTIP_ROW_STYLE}>Count: {count}</div>
+    </div>
+  );
+}
 
 export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps) {
   const spreads = data.map((d) => d.spread).filter((v): v is number => v != null);
@@ -95,11 +136,12 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
               />
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                labelStyle={TOOLTIP_LABEL_STYLE}
-                itemStyle={TOOLTIP_ITEM_STYLE}
-                formatter={(value: number) => [value, "Count"]}
-                labelFormatter={(label) => `Value: ${Number(label).toFixed(4)}`}
+                content={
+                  <HistogramTooltip
+                    labelPrefix="Value"
+                    precision={4}
+                  />
+                }
               />
               <ReferenceLine
                 x={spreadMean}
@@ -150,11 +192,12 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
               />
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                labelStyle={TOOLTIP_LABEL_STYLE}
-                itemStyle={TOOLTIP_ITEM_STYLE}
-                formatter={(value: number) => [value, "Count"]}
-                labelFormatter={(label) => `Z-Score: ${Number(label).toFixed(2)}`}
+                content={
+                  <HistogramTooltip
+                    labelPrefix="Z-Score"
+                    precision={2}
+                  />
+                }
               />
               <ReferenceLine
                 x={2}
