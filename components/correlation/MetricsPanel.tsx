@@ -45,7 +45,7 @@ export default function MetricsPanel({ metrics }: MetricsPanelProps) {
               </span>
             </div>
           ) : (
-            <SignalBadge level={level} size="sm" pulse={false} label="No Trade" />
+            <SignalBadge level={level} size="sm" pulse={false} label="Hold" />
           )}
         </div>
 
