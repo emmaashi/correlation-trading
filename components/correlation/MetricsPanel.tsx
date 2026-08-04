@@ -19,17 +19,34 @@ export default function MetricsPanel({ metrics }: MetricsPanelProps) {
   const zscoreWindowLabel = metrics.zscore_window ? `${metrics.zscore_window}D` : "Full";
   const currentMean = metrics.current_mean ?? metrics.mean;
   const currentStd = metrics.current_std ?? metrics.std;
-
-  const signalLabel =
-    direction === "long" ? "Long" : direction === "short" ? "Short" : "Hold";
+  const tradeLegs =
+    direction === "short"
+      ? { short: metrics.ticker_a, long: metrics.ticker_b }
+      : direction === "long"
+        ? { short: metrics.ticker_b, long: metrics.ticker_a }
+        : null;
 
   return (
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] px-2 py-2.5">
       <div className="flex flex-wrap items-center gap-y-2">
         {/* Signal */}
-        <div className="flex items-center gap-1.5 px-3">
+        <div className="flex items-center gap-2 px-3">
           <span className="text-[10px] uppercase tracking-widest text-neutral-500">Signal</span>
-          <SignalBadge level={level} size="sm" pulse={false} label={signalLabel} />
+          {tradeLegs ? (
+            <div className="flex items-center gap-2 text-[10px] font-semibold">
+              <span className="inline-flex items-center gap-1.5 text-red-400">
+                <span className="h-2 w-2 rounded-full bg-red-500" />
+                Short <span className="font-mono">{tradeLegs.short}</span>
+              </span>
+              <span className="text-neutral-600">+</span>
+              <span className="inline-flex items-center gap-1.5 text-green-400">
+                <span className="h-2 w-2 rounded-full bg-green-500" />
+                Long <span className="font-mono">{tradeLegs.long}</span>
+              </span>
+            </div>
+          ) : (
+            <SignalBadge level={level} size="sm" pulse={false} label="No Trade" />
+          )}
         </div>
 
         <Divider />
