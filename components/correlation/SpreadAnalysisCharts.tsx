@@ -197,11 +197,10 @@ export default function SpreadAnalysisCharts({
             Spread with Mean Reversion Bands
           </h3>
           <ChartInfoTooltip label="Spread with Mean Reversion Bands">
-            Tracks the selected spread of {tickerA} relative to {tickerB}. The
-            center line is its historical mean; amber and red bands mark one and
-            two standard deviations. Repeated moves back toward the mean support
-            a mean-reversion thesis, while persistent breaks can signal a regime
-            change.
+            Shows how far {tickerA} has moved relative to {tickerB} versus their
+            historical relationship. Touches of the outer bands can flag a
+            stretched pair and possible mean-reversion entry. Staying outside the
+            bands may signal a regime change.
           </ChartInfoTooltip>
         </div>
         <p className="text-xs text-neutral-500 mb-4">
@@ -278,9 +277,9 @@ export default function SpreadAnalysisCharts({
             Spread Z-Score
           </h3>
           <ChartInfoTooltip label="Spread Z-Score">
-            Expresses the spread&apos;s distance from its rolling 60-day mean in
-            standard deviations. Zero is typical, values beyond ±1 are worth
-            watching, and moves beyond ±2 are potential pair-trade signals.
+            Shows how unusual the spread is versus its 60-day average. Above +2
+            can favor short {tickerA} and long {tickerB}. Below -2 can favor the
+            reverse. A move back toward 0 is the mean-reversion thesis.
           </ChartInfoTooltip>
         </div>
         <p className="text-xs text-neutral-500 mb-4">

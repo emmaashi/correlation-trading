@@ -123,10 +123,10 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
             Spread Distribution
           </h3>
           <ChartInfoTooltip label="Spread Distribution">
-            Counts how often each spread level occurred. A tight single cluster
-            suggests a more stable relationship. A wide or multi-peaked shape
-            can indicate greater volatility or changing market regimes. The mean
-            and median help reveal skew.
+            Shows the spread levels the pair visits most often. A tight single
+            cluster supports a stable range for mean-reversion trades. A wide or
+            multi-peaked shape warns that the relationship is unstable and entry
+            thresholds may be unreliable.
           </ChartInfoTooltip>
         </div>
         <p className="text-xs text-neutral-500 mb-4">
@@ -187,10 +187,10 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
             Z-Score Distribution
           </h3>
           <ChartInfoTooltip label="Z-Score Distribution">
-            Counts how often standardized spread readings occurred. Green bars
-            fall within ±2. Red tails are rare historical extremes that may offer
-            mean-reversion entries. An uneven shape shows that divergences have
-            favored one direction.
+            Shows how often the pair reaches each level of divergence. Small red
+            tails mean ±2 readings are rare and may offer useful entry signals.
+            Large or uneven tails suggest frequent extremes or directional bias,
+            which weakens a simple mean-reversion strategy.
           </ChartInfoTooltip>
         </div>
         <p className="text-xs text-neutral-500 mb-4">

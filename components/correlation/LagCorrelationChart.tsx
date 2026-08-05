@@ -40,11 +40,10 @@ export default function LagCorrelationChart({
           Lagged Correlation
         </h3>
         <ChartInfoTooltip label="Lagged Correlation">
-          Shows how closely daily returns move after shifting one series by up to
-          10 trading days. Lag 0 compares same-day moves. Positive lags test
-          whether {tickerA} leads {tickerB}; negative lags test whether {tickerB}{" "}
-          leads {tickerA}. Values closer to +1 or -1 indicate a stronger
-          relationship.
+          Shows whether one stock&apos;s daily returns tend to lead the other&apos;s. A
+          strong peak at a positive lag suggests {tickerA} moves first. A strong
+          negative lag suggests {tickerB} moves first. A peak at lag 0 means they
+          mainly move together on the same day.
         </ChartInfoTooltip>
       </div>
       <p className="text-xs text-neutral-500 mb-4">
