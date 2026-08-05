@@ -20,11 +20,11 @@ The Next dev server (`npm run dev` in the repo root) rewrites browser requests f
 
 | Method | Path | Query | Returns |
 |--------|------|-------|---------|
-| GET | `/api/pairs` | — | The 14 pre-configured pairs (tickers, names, sector) |
+| GET | `/api/pairs` | — | The 15 pre-configured pairs (tickers, names, sector) |
 | GET | `/api/validate` | `ticker` | `{valid, ticker, name}` — used to validate custom ticker input |
-| GET | `/api/correlation` | `ticker_a`, `ticker_b`, `start`, `end`, `max_lag` | Lagged Pearson correlation across `[-max_lag, +max_lag]` |
+| GET | `/api/correlation` | `ticker_a`, `ticker_b`, `start`, `end`, `max_lag` | Lagged Pearson correlation of daily log returns across `[-max_lag, +max_lag]` |
 | GET | `/api/spread` | `ticker_a`, `ticker_b`, `start`, `end`, `spread_type` | Spread series, z-score, and metrics for the pair |
-| GET | `/api/risk/breakdown` | `ticker_a`, `ticker_b`, optional `end`, optional `start` override | Correlation-breakdown risk signal with its own lookback window, current 60d correlation, 1y baseline, and `broken_since` |
+| GET | `/api/risk/breakdown` | `ticker_a`, `ticker_b`, optional `end`, optional `start` override | Return-correlation breakdown signal with its own lookback window, current 60d correlation, baseline, reason, and `broken_since` |
 
 Dates are `YYYY-MM-DD`. `spread_type` is one of the values supported by `analysis/spread.py` (default `log_ratio`).
 
@@ -33,7 +33,7 @@ Dates are `YYYY-MM-DD`. `spread_type` is one of the values supported by `analysi
 1. **Browser request** lands on the Flask endpoint (e.g. `/api/correlation?ticker_a=MSFT&ticker_b=GOOGL&start=2023-01-01&end=2026-01-01`).
 2. **`load_pair_data`** (`analysis/data_loader.py`) fetches each ticker via `get_stock_data`, then inner-joins on `Date`.
 3. **`get_stock_data`** is the cache layer:
-   - Looks for `data/raw/<TICKER>_<start>_to_<end>_raw.csv` — if present, reads it and returns immediately.
+   - Looks for `data/raw/<TICKER>_<start>_to_<end>_<VERSION>_raw.csv` — if present and valid, reads it and returns immediately.
    - Otherwise calls `yfinance.download(ticker, start, end)`, normalises columns to `[Date, Close, Ticker]`, writes the CSV, and returns.
 4. **Analysis modules** (`correlation.py`, `spread.py`) consume the merged DataFrame and produce the JSON the frontend renders.
 
@@ -44,15 +44,15 @@ correlation-api/
 ├── app.py                    # Flask app + route handlers
 ├── analysis/
 │   ├── data_loader.py        # yfinance fetch + CSV cache
-│   ├── correlation.py        # Lagged Pearson
-│   └── spread.py             # Hedge ratio, spread series, z-score, metrics
+│   ├── correlation.py        # Lagged Pearson correlation of log returns
+│   └── spread.py             # Spread series, rolling z-score, metrics
 ├── data/raw/                 # CSV cache (gitignored)
 └── requirements.txt
 ```
 
 ## Configuring the pair list
 
-Edit `PAIRS` at the top of `app.py`. Each entry needs `ticker_a`, `ticker_b`, `name_a`, `name_b`, `sector`. The frontend picks these up via `GET /api/pairs`.
+Keep the `PAIRS` lists in `app.py` and `../lib/correlationTypes.ts` synchronized. Each entry needs `ticker_a`, `ticker_b`, `name_a`, `name_b`, and `sector`.
 
 ## Troubleshooting
 

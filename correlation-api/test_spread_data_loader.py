@@ -75,6 +75,41 @@ class TestSpreadDataLoader(unittest.TestCase):
 
         self.assertFalse(_cache_is_valid(df, "AMD", "2023-08-04", "2026-08-04"))
 
+    def test_stock_data_cache_rejects_invalid_price_rows(self):
+        from analysis.data_loader import _cache_is_valid
+
+        dates = pd.date_range(start="2026-07-27", end="2026-08-03", freq="B")
+        valid = pd.DataFrame({
+            "Date": dates,
+            "Close": np.arange(len(dates), dtype=float) + 100.0,
+            "Ticker": "DDOG",
+        })
+        invalid_frames = []
+
+        missing_close = valid.copy()
+        missing_close.loc[1, "Close"] = np.nan
+        invalid_frames.append(missing_close)
+
+        infinite_close = valid.copy()
+        infinite_close.loc[1, "Close"] = np.inf
+        invalid_frames.append(infinite_close)
+
+        nonpositive_close = valid.copy()
+        nonpositive_close.loc[1, "Close"] = 0.0
+        invalid_frames.append(nonpositive_close)
+
+        duplicate_date = pd.concat([valid, valid.iloc[[0]]], ignore_index=True)
+        invalid_frames.append(duplicate_date)
+
+        unsorted_dates = valid.iloc[::-1].reset_index(drop=True)
+        invalid_frames.append(unsorted_dates)
+
+        for frame in invalid_frames:
+            with self.subTest(frame=frame):
+                self.assertFalse(
+                    _cache_is_valid(frame, "DDOG", "2026-07-27", "2026-08-04")
+                )
+
     def test_stock_downloads_are_serialized(self):
         from analysis.data_loader import get_stock_data
 

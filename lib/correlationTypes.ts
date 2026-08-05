@@ -58,6 +58,7 @@ export interface RiskBreakdownResponse {
   baseline_corr: number | null;
   broken: boolean;
   broken_since: string | null;
+  breakdown_reason: "relative" | "absolute" | "relative_and_absolute" | null;
 }
 
 export type SignalLevel = "normal" | "watch" | "signal";
@@ -77,6 +78,7 @@ export const SECTOR_COLORS: Record<string, string> = {
 export const PAIRS: PairInfo[] = [
   { ticker_a: "MSFT",  ticker_b: "GOOGL", name_a: "Microsoft",         name_b: "Google",            sector: "Technology" },
   { ticker_a: "AMD",   ticker_b: "NVDA",  name_a: "AMD",               name_b: "NVIDIA",            sector: "Technology" },
+  { ticker_a: "DDOG",  ticker_b: "NET",   name_a: "Datadog",           name_b: "Cloudflare",         sector: "Technology" },
   { ticker_a: "CVS",   ticker_b: "JNJ",   name_a: "CVS Health",        name_b: "Johnson & Johnson", sector: "Healthcare" },
   { ticker_a: "PFE",   ticker_b: "MRK",   name_a: "Pfizer",            name_b: "Merck",             sector: "Healthcare" },
   { ticker_a: "CL",    ticker_b: "KMB",   name_a: "Colgate-Palmolive", name_b: "Kimberly-Clark",    sector: "Consumer" },

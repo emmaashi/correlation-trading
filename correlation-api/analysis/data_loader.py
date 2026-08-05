@@ -1,5 +1,7 @@
 import os
 import threading
+
+import numpy as np
 import pandas as pd
 import yfinance as yf
 
@@ -38,7 +40,9 @@ def _cache_is_valid(df, ticker, start_date, end_date):
     closes = pd.to_numeric(df["Close"], errors="coerce")
     tickers = df["Ticker"].astype(str).str.upper()
 
-    if dates.isna().any() or closes.isna().all():
+    if dates.isna().any() or dates.duplicated().any() or not dates.is_monotonic_increasing:
+        return False
+    if closes.isna().any() or not np.isfinite(closes).all() or (closes <= 0).any():
         return False
     if not (tickers == ticker.upper()).all():
         return False
