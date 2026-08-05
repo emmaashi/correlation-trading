@@ -15,6 +15,7 @@ interface PairSelectorProps {
   onSelect: (pair: PairInfo) => void;
   selectedPair: PairInfo | null;
   pairSignals: Record<string, SignalLevel>;
+  dateRange: { start: string; end: string };
   onError: (message: string) => void;
 }
 
@@ -22,6 +23,7 @@ export default function PairSelector({
   onSelect,
   selectedPair,
   pairSignals,
+  dateRange,
   onError,
 }: PairSelectorProps) {
   const [customA, setCustomA] = useState("");
@@ -54,6 +56,30 @@ export default function PairSelector({
           invalid.length === 2
             ? `"${invalid[0]}" and "${invalid[1]}" are not valid ticker symbols`
             : `"${invalid[0]}" is not a valid ticker symbol`
+        );
+        return;
+      }
+
+      const pairParams = new URLSearchParams({
+        ticker_a: a,
+        ticker_b: b,
+        start: dateRange.start,
+        end: dateRange.end,
+        max_lag: "0",
+      });
+      const pairRes = await fetch(`/api/correlation?${pairParams}`);
+      const pairData = await pairRes.json();
+      const hasUsableData =
+        pairRes.ok &&
+        Array.isArray(pairData.data) &&
+        pairData.data.some(
+          (point: { correlation?: number | null }) =>
+            typeof point.correlation === "number"
+        );
+
+      if (!hasUsableData) {
+        onError(
+          `"${a}/${b}" does not have enough overlapping price history for this date range`
         );
         return;
       }
