@@ -9,6 +9,7 @@ import yfinance as yf
 
 from analysis.data_loader import load_pair_data
 from analysis.correlation import compute_lagged_correlation
+from analysis.pair_model import validate_pair_model
 from analysis.spread import calculate_spread_metrics
 from analysis.risk import detect_correlation_breakdown
 
@@ -210,6 +211,11 @@ def get_spread():
 
         price_a = spread_df[f"{ticker_a}_price"]
         price_b = spread_df[f"{ticker_b}_price"]
+        pair_model = validate_pair_model(
+            price_a,
+            price_b,
+            zscore_window=window,
+        )
         norm_a = price_a / price_a.iloc[0] * 100
         norm_b = price_b / price_b.iloc[0] * 100
 
@@ -241,6 +247,7 @@ def get_spread():
             "spread_type": spread_type,
             "data": data,
             "metrics": clean_metrics,
+            "pair_model": pair_model,
         })
     except ValueError as e:
         return jsonify({"error": str(e)}), 400

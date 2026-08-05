@@ -53,12 +53,49 @@ export interface SpreadMetrics {
   zscore_window: number;
 }
 
+export type PairModelRejectionReason =
+  | "insufficient_history"
+  | "invalid_data"
+  | "invalid_hedge_ratio"
+  | "cointegration_not_significant"
+  | "residual_not_stationary"
+  | "non_mean_reverting"
+  | "implausible_half_life";
+
+export interface PairModelValidation {
+  eligible: boolean;
+  rejection_reasons: PairModelRejectionReason[];
+  observation_count: number;
+  intercept: number | null;
+  hedge_ratio: number | null;
+  cointegration_pvalue: number | null;
+  adf_pvalue: number | null;
+  ar1_coefficient: number | null;
+  half_life_days: number | null;
+  residual_zscore_window: number | null;
+  residual_zscore_observations: number;
+  current_residual: number | null;
+  current_residual_mean: number | null;
+  current_residual_std: number | null;
+  current_residual_zscore: number | null;
+  signal_zscore: number | null;
+  diagnostic_scope: "current_snapshot";
+  thresholds: {
+    min_observations: number;
+    significance_level: number;
+    min_half_life_days: number;
+    max_half_life_days: number;
+  };
+  methodology_note: string;
+}
+
 export interface SpreadResponse {
   ticker_a: string;
   ticker_b: string;
   spread_type: string;
   data: SpreadPoint[];
   metrics: SpreadMetrics;
+  pair_model: PairModelValidation;
 }
 
 export interface RiskBreakdownResponse {

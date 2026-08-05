@@ -33,10 +33,44 @@ The suite mocks market-data downloads and does not require network access.
 | GET | `/api/pairs` | — | The 15 pre-configured pairs (tickers, names, sector) |
 | GET | `/api/validate` | `ticker` | `{valid, ticker, name}` — used to validate custom ticker input |
 | GET | `/api/correlation` | `ticker_a`, `ticker_b`, `start`, `end`, `max_lag` | Lagged Pearson correlation of daily log returns across `[-max_lag, +max_lag]` |
-| GET | `/api/spread` | `ticker_a`, `ticker_b`, `start`, `end`, `spread_type` | Spread series, z-score, and metrics for the pair |
+| GET | `/api/spread` | `ticker_a`, `ticker_b`, `start`, `end`, `spread_type`, `window` | Descriptive spread series plus current pair-model eligibility and residual signal diagnostics |
 | GET | `/api/risk/breakdown` | `ticker_a`, `ticker_b`, optional `end`, optional `start` override | Return-correlation breakdown signal with its own lookback window, current 60d correlation, baseline, reason, and `broken_since` |
 
 Dates are `YYYY-MM-DD`. `spread_type` is one of the values supported by `analysis/spread.py` (default `log_ratio`).
+
+## Pair-model diagnostics
+
+The spread response includes a supplemental `pair_model` object for evaluating
+the historical relationship behind a pair. The validator aligns
+positive prices, models `log(A) = intercept + hedge_ratio * log(B) + residual`,
+and reports:
+
+- OLS intercept and hedge ratio
+- Engle-Granger cointegration and residual ADF p-values
+- Residual AR(1) coefficient and estimated mean-reversion half-life
+- Current fitted residual, trailing-window mean, standard deviation, and z-score
+- Aligned observation count, eligibility, thresholds, and machine-readable
+  rejection reasons
+
+`current_residual_zscore` uses the OLS residual and the same trailing `window`
+requested for the descriptive spread (60 observations by default).
+`signal_zscore` is that residual z-score when every model check passes and
+`null` otherwise. The frontend treats these checks as advisory diagnostics. Its
+Short, Long, and Hold decision uses `metrics.current_zscore` from the fixed
+60-day log-ratio spread, preserving a signal even when model cautions exist.
+
+Eligibility requires at least 252 observations, a positive finite hedge ratio,
+both p-values at or below 0.05, stable `0 < AR(1) < 1` dynamics, and a half-life
+between 1 and 126 trading days. Rejection reasons are
+`insufficient_history`, `invalid_data`, `invalid_hedge_ratio`,
+`cointegration_not_significant`, `residual_not_stationary`,
+`non_mean_reverting`, and `implausible_half_life`.
+
+This endpoint is a current-snapshot diagnostic: the OLS model is fit over the
+full selected history and the latest residual is standardized against its
+trailing window. It does not produce a point-in-time historical simulation or
+backtest. These tests are statistical evidence, not guarantees of future mean
+reversion or trading performance.
 
 ## How data is pulled
 
@@ -75,6 +109,7 @@ correlation-api/
 ├── analysis/
 │   ├── data_loader.py        # yfinance fetch + CSV cache
 │   ├── correlation.py        # Lagged Pearson correlation of log returns
+│   ├── pair_model.py         # Cointegration and mean-reversion quality gate
 │   └── spread.py             # Spread series, rolling z-score, metrics
 ├── data/raw/                 # CSV cache (gitignored)
 └── requirements.txt

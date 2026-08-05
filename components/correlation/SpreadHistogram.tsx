@@ -186,9 +186,9 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <div className="mb-1 flex items-start gap-1.5">
           <h3 className="text-sm font-semibold text-neutral-300">
-            Z-Score Distribution
+            Log-Ratio Z-Score Distribution
           </h3>
-          <ChartInfoTooltip label="Z-Score Distribution">
+          <ChartInfoTooltip label="Log-Ratio Z-Score Distribution">
             Shows how often the pair reaches each level of divergence. Small red
             tails mean ±2 readings are rare and may offer useful entry signals.
             Large or uneven tails suggest frequent extremes or directional bias,
@@ -196,7 +196,7 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
           </ChartInfoTooltip>
         </div>
         <p className="text-xs text-neutral-500 mb-4">
-          Histogram of z-score values — tails beyond ±2 highlighted
+          Historical distribution of the z-score used by the trading signal
         </p>
         <div className="h-[220px]">
           <ResponsiveContainer width="100%" height="100%">

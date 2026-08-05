@@ -30,7 +30,6 @@ export default function CorrelationTradingPage() {
     start: yearsAgoISO(3),
     end: todayISO(),
   });
-  const [spreadType, setSpreadType] = useState("log_ratio");
   const [loading, setLoading] = useState(false);
   const [corrData, setCorrData] = useState<CorrelationResponse | null>(null);
   const [spreadData, setSpreadData] = useState<SpreadResponse | null>(null);
@@ -57,7 +56,7 @@ export default function CorrelationTradingPage() {
             `${API_BASE}/correlation?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}`
           ),
           fetch(
-            `${API_BASE}/spread?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}&spread_type=${spreadType}&window=${SIGNAL_WINDOW}`
+            `${API_BASE}/spread?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}&spread_type=log_ratio&window=${SIGNAL_WINDOW}`
           ),
           fetch(
             `${API_BASE}/risk/breakdown?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&end=${dateRange.end}`
@@ -99,14 +98,14 @@ export default function CorrelationTradingPage() {
         setLoading(false);
       }
     },
-    [dateRange, spreadType]
+    [dateRange]
   );
 
   useEffect(() => {
     if (selectedPair) {
       fetchAnalysis(selectedPair);
     }
-  }, [selectedPair, dateRange, spreadType, fetchAnalysis]);
+  }, [selectedPair, dateRange, fetchAnalysis]);
 
   const handleSelect = (pair: PairInfo) => {
     setSelectedPair(pair);
@@ -159,9 +158,7 @@ export default function CorrelationTradingPage() {
               <ControlsBar
                 pair={selectedPair}
                 dateRange={dateRange}
-                spreadType={spreadType}
                 onDateRangeChange={setDateRange}
-                onSpreadTypeChange={setSpreadType}
                 onBack={handleBack}
                 loading={loading}
               />
@@ -185,7 +182,10 @@ export default function CorrelationTradingPage() {
                 <div className="mt-6 space-y-6">
                   {riskData?.broken && <RiskWarningBanner risk={riskData} />}
 
-                  <MetricsPanel metrics={spreadData.metrics} />
+                  <MetricsPanel
+                    metrics={spreadData.metrics}
+                    model={spreadData.pair_model}
+                  />
 
                   {corrData && (
                     <LagCorrelationChart

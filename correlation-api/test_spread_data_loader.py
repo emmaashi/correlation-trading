@@ -60,6 +60,54 @@ class TestSpreadDataLoader(unittest.TestCase):
             "Ticker_GOOGL": ["GOOGL"] * periods,
         })
 
+    def test_spread_api_signal_uses_model_residual_zscore(self):
+        from app import app
+
+        rng = np.random.default_rng(29)
+        observations = 700
+        window = 40
+        log_b = 4.5 + np.cumsum(rng.normal(0.0003, 0.012, observations))
+        residual = np.zeros(observations)
+        innovations = rng.normal(0, 0.006, observations)
+        for index in range(1, observations):
+            residual[index] = 0.75 * residual[index - 1] + innovations[index]
+        log_a = 0.4 + 1.7 * log_b + residual
+        dates = pd.date_range("2020-01-01", periods=observations, freq="B")
+        mock_df = pd.DataFrame({
+            "Date": dates,
+            "Close_AAA": np.exp(log_a),
+            "Ticker_AAA": ["AAA"] * observations,
+            "Close_BBB": np.exp(log_b),
+            "Ticker_BBB": ["BBB"] * observations,
+        })
+
+        design = np.column_stack([np.ones(observations), log_b])
+        coefficients = np.linalg.lstsq(design, log_a, rcond=None)[0]
+        fitted_residual = log_a - design @ coefficients
+        residual_window = fitted_residual[-window:]
+        expected_zscore = (
+            fitted_residual[-1] - residual_window.mean()
+        ) / residual_window.std(ddof=1)
+
+        with patch("app.load_pair_data", return_value=mock_df):
+            with app.test_client() as client:
+                response = client.get(
+                    f"/api/spread?ticker_a=AAA&ticker_b=BBB&window={window}&spread_type=log_ratio"
+                )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        model = data["pair_model"]
+        self.assertTrue(model["eligible"])
+        self.assertAlmostEqual(model["hedge_ratio"], 1.7, delta=0.05)
+        self.assertAlmostEqual(model["current_residual_zscore"], expected_zscore)
+        self.assertAlmostEqual(model["signal_zscore"], expected_zscore)
+        self.assertNotAlmostEqual(
+            model["signal_zscore"],
+            data["metrics"]["current_zscore"],
+            places=2,
+        )
+
     def test_spread_api_returns_current_zscore_components(self):
         from app import app
 
@@ -109,6 +157,12 @@ class TestSpreadDataLoader(unittest.TestCase):
                     expected_zscore,
                     places=6,
                 )
+                self.assertFalse(data["pair_model"]["eligible"])
+                self.assertIn(
+                    "insufficient_history",
+                    data["pair_model"]["rejection_reasons"],
+                )
+                self.assertIsNone(data["pair_model"]["signal_zscore"])
 
     def test_historical_bands_do_not_use_future_spread_values(self):
         from analysis.spread import calculate_spread_metrics

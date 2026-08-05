@@ -17,7 +17,12 @@ export default function SignalBadge({
 }: SignalBadgeProps) {
   const color = getSignalColor(level);
   const displayLabel =
-    label ?? (level === "signal" ? "Signal" : level === "watch" ? "Watch" : "Normal");
+    label ??
+    (level === "signal"
+      ? "Signal"
+      : level === "watch"
+        ? "Watch"
+        : "Normal");
 
   const dotSize = size === "sm" ? "h-2 w-2" : size === "lg" ? "h-3.5 w-3.5" : "h-2.5 w-2.5";
   const textSize = size === "sm" ? "text-[10px]" : size === "lg" ? "text-sm" : "text-xs";
