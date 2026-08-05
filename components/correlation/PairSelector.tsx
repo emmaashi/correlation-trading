@@ -91,19 +91,21 @@ export default function PairSelector({
         }}
         className="mx-auto flex w-full max-w-2xl flex-col gap-2 sm:flex-row"
       >
-        <div className="flex min-w-0 flex-1 items-center rounded-xl border border-white/[0.08] bg-white/[0.05] transition-colors focus-within:border-[#c28b00]/50 focus-within:ring-1 focus-within:ring-[#c28b00]/30">
-          <Search
-            aria-hidden="true"
-            className="ml-3 h-4 w-4 flex-shrink-0 text-neutral-600"
-          />
-          <input
-            aria-label="Ticker A"
-            value={customA}
-            onChange={(event) => setCustomA(event.target.value.toUpperCase())}
-            placeholder="Ticker A"
-            spellCheck={false}
-            className="w-0 min-w-0 flex-1 bg-transparent px-3 py-2.5 font-mono text-sm text-neutral-50 placeholder:text-neutral-600 focus:outline-none"
-          />
+        <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+          <div className="flex h-9 min-w-0 items-center rounded-lg border border-white/[0.08] bg-white/[0.05] transition-colors focus-within:border-[#c28b00]/50 focus-within:ring-1 focus-within:ring-[#c28b00]/30">
+            <Search
+              aria-hidden="true"
+              className="ml-3 h-3.5 w-3.5 flex-shrink-0 text-neutral-600"
+            />
+            <input
+              aria-label="Ticker A"
+              value={customA}
+              onChange={(event) => setCustomA(event.target.value.toUpperCase())}
+              placeholder="Ticker A"
+              spellCheck={false}
+              className="w-0 min-w-0 flex-1 bg-transparent px-2.5 font-mono text-sm text-neutral-50 placeholder:text-neutral-600 focus:outline-none"
+            />
+          </div>
           <span className="flex-shrink-0 text-xs font-medium text-neutral-600">
             vs
           </span>
@@ -113,7 +115,7 @@ export default function PairSelector({
             onChange={(event) => setCustomB(event.target.value.toUpperCase())}
             placeholder="Ticker B"
             spellCheck={false}
-            className="w-0 min-w-0 flex-1 bg-transparent px-3 py-2.5 font-mono text-sm text-neutral-50 placeholder:text-neutral-600 focus:outline-none"
+            className="h-9 min-w-0 rounded-lg border border-white/[0.08] bg-white/[0.05] px-3 font-mono text-sm text-neutral-50 transition-colors placeholder:text-neutral-600 focus:border-[#c28b00]/50 focus:outline-none focus:ring-1 focus:ring-[#c28b00]/30"
           />
         </div>
         <button
@@ -124,7 +126,7 @@ export default function PairSelector({
             !customB.trim() ||
             customA.trim() === customB.trim()
           }
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#c28b00] px-5 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-[#d4a020] disabled:cursor-not-allowed disabled:opacity-30 sm:w-auto"
+          className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-[#c28b00] px-5 text-sm font-semibold text-black transition-colors hover:bg-[#d4a020] disabled:cursor-not-allowed disabled:opacity-30 sm:w-auto"
         >
           {validating && (
             <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-black/30 border-t-black" />
