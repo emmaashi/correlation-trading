@@ -16,6 +16,7 @@ app = Flask(__name__)
 CORS(app)
 
 RISK_LOOKBACK_DAYS = 540
+DEFAULT_SIGNAL_WINDOW = 60
 
 PAIRS = [
     {"ticker_a": "MSFT",  "ticker_b": "GOOGL", "name_a": "Microsoft",         "name_b": "Google",            "sector": "Technology"},
@@ -56,6 +57,69 @@ def _risk_start_date(end_date):
     return (parsed_end - timedelta(days=RISK_LOOKBACK_DAYS)).isoformat()
 
 
+def _parse_integer_arg(name, default, minimum):
+    raw_value = request.args.get(name)
+    if raw_value is None:
+        return default
+
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be an integer") from exc
+
+    if value < minimum:
+        comparator = "non-negative" if minimum == 0 else f"at least {minimum}"
+        raise ValueError(f"{name} must be {comparator}")
+    return value
+
+
+def _parse_iso_date(value, name):
+    try:
+        parsed = datetime.strptime(value, "%Y-%m-%d").date()
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be in YYYY-MM-DD format") from exc
+    if parsed.isoformat() != value:
+        raise ValueError(f"{name} must be in YYYY-MM-DD format")
+    return parsed
+
+
+def _validate_date_range(start, end):
+    parsed_start = _parse_iso_date(start, "start")
+    parsed_end = _parse_iso_date(end, "end")
+    if parsed_start >= parsed_end:
+        raise ValueError("start must be before end")
+
+
+def _validate_pair(ticker_a, ticker_b):
+    if not ticker_a or not ticker_b:
+        raise ValueError("ticker_a and ticker_b are required")
+    if ticker_a == ticker_b:
+        raise ValueError("ticker_a and ticker_b must be different")
+
+
+def _valid_pair_rows(df, ticker_a, ticker_b):
+    column_a = f"Close_{ticker_a}"
+    column_b = f"Close_{ticker_b}"
+    missing_columns = [column for column in (column_a, column_b) if column not in df]
+    if missing_columns:
+        raise ValueError("Pair data is missing required price columns")
+
+    price_a = pd.to_numeric(df[column_a], errors="coerce")
+    price_b = pd.to_numeric(df[column_b], errors="coerce")
+    valid = (
+        price_a.notna()
+        & price_b.notna()
+        & price_a.map(math.isfinite)
+        & price_b.map(math.isfinite)
+        & (price_a > 0)
+        & (price_b > 0)
+    )
+    valid_df = df.loc[valid].copy().reset_index(drop=True)
+    valid_df[column_a] = price_a.loc[valid].to_numpy()
+    valid_df[column_b] = price_b.loc[valid].to_numpy()
+    return valid_df
+
+
 @app.route("/api/pairs", methods=["GET"])
 def get_pairs():
     return jsonify(PAIRS)
@@ -81,13 +145,20 @@ def get_correlation():
     ticker_b = request.args.get("ticker_b", "").upper()
     start = request.args.get("start", "2020-01-01")
     end = request.args.get("end", str(date.today()))
-    max_lag = int(request.args.get("max_lag", "10"))
-
-    if not ticker_a or not ticker_b:
-        return jsonify({"error": "ticker_a and ticker_b are required"}), 400
 
     try:
+        _validate_pair(ticker_a, ticker_b)
+        _validate_date_range(start, end)
+        max_lag = _parse_integer_arg("max_lag", default=10, minimum=0)
         df = load_pair_data(ticker_a, ticker_b, start, end)
+        df = _valid_pair_rows(df, ticker_a, ticker_b)
+        minimum_observations = max_lag + 3
+        if len(df) < minimum_observations:
+            raise ValueError(
+                "At least "
+                f"{minimum_observations} overlapping observations are required "
+                f"for max_lag={max_lag}; received {len(df)}"
+            )
         series_a = df[f"Close_{ticker_a}"]
         series_b = df[f"Close_{ticker_b}"]
         corr_df = compute_lagged_correlation(series_a, series_b, max_lag)
@@ -100,24 +171,35 @@ def get_correlation():
                 for _, row in corr_df.iterrows()
             ],
         })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
 @app.route("/api/spread", methods=["GET"])
 def get_spread():
-    window = request.args.get("window", 60, type=int)
     ticker_a = request.args.get("ticker_a", "").upper()
     ticker_b = request.args.get("ticker_b", "").upper()
     start = request.args.get("start", "2023-01-01")
     end = request.args.get("end", str(date.today()))
     spread_type = request.args.get("spread_type", "log_ratio")
 
-    if not ticker_a or not ticker_b:
-        return jsonify({"error": "ticker_a and ticker_b are required"}), 400
-
     try:
+        _validate_pair(ticker_a, ticker_b)
+        _validate_date_range(start, end)
+        window = _parse_integer_arg(
+            "window", default=DEFAULT_SIGNAL_WINDOW, minimum=2
+        )
         df = load_pair_data(ticker_a, ticker_b, start, end)
+        df = _valid_pair_rows(df, ticker_a, ticker_b)
+        if len(df) < window:
+            raise ValueError(
+                "At least "
+                f"{window} overlapping observations are required "
+                f"for window={window}; "
+                f"received {len(df)}"
+            )
         spread_df, metrics = calculate_spread_metrics(
             df,
             ticker_a,
@@ -142,6 +224,12 @@ def get_spread():
                 "norm_a": _safe_float(norm_a.iloc[i]),
                 "norm_b": _safe_float(norm_b.iloc[i]),
                 "spread": _safe_float(row["spread"]),
+                "rolling_mean": _safe_float(row["rolling_mean"]),
+                "rolling_std": _safe_float(row["rolling_std"]),
+                "band_1_upper": _safe_float(row["band_1_upper"]),
+                "band_1_lower": _safe_float(row["band_1_lower"]),
+                "band_2_upper": _safe_float(row["band_2_upper"]),
+                "band_2_lower": _safe_float(row["band_2_lower"]),
                 "zscore": _safe_float(row["zscore"]),
             })
 
@@ -154,6 +242,8 @@ def get_spread():
             "data": data,
             "metrics": clean_metrics,
         })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -164,11 +254,10 @@ def get_risk_breakdown():
     ticker_b = request.args.get("ticker_b", "").upper()
     end = request.args.get("end", str(date.today()))
 
-    if not ticker_a or not ticker_b:
-        return jsonify({"error": "ticker_a and ticker_b are required"}), 400
-
     try:
+        _validate_pair(ticker_a, ticker_b)
         start = request.args.get("start") or _risk_start_date(end)
+        _validate_date_range(start, end)
         df = load_pair_data(ticker_a, ticker_b, start, end)
         date_index = pd.to_datetime(df["Date"])
         series_a = pd.Series(df[f"Close_{ticker_a}"].values, index=date_index)

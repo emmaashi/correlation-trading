@@ -19,7 +19,7 @@ import type {
   SpreadResponse,
   SignalLevel,
 } from "@/lib/correlationTypes";
-import { getSignalLevel } from "@/lib/correlationTypes";
+import { getSignalLevel, SIGNAL_WINDOW } from "@/lib/correlationTypes";
 import { todayISO, yearsAgoISO } from "@/lib/dateUtils";
 
 const API_BASE = "/api";
@@ -35,17 +35,21 @@ export default function CorrelationTradingPage() {
   const [corrData, setCorrData] = useState<CorrelationResponse | null>(null);
   const [spreadData, setSpreadData] = useState<SpreadResponse | null>(null);
   const [riskData, setRiskData] = useState<RiskBreakdownResponse | null>(null);
-  const [pairSignals, setPairSignals] = useState<Record<string, SignalLevel>>({});
+  const [pairSignals, setPairSignals] = useState<
+    Record<string, SignalLevel | null>
+  >({});
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" } | null>(null);
 
   const fetchAnalysis = useCallback(
     async (pair: PairInfo) => {
+      const signalKey = `${pair.ticker_a}_${pair.ticker_b}`;
       setLoading(true);
       setError(null);
       setCorrData(null);
       setSpreadData(null);
       setRiskData(null);
+      setPairSignals((prev) => ({ ...prev, [signalKey]: null }));
 
       try {
         const [corrRes, spreadRes, riskRes] = await Promise.all([
@@ -53,7 +57,7 @@ export default function CorrelationTradingPage() {
             `${API_BASE}/correlation?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}`
           ),
           fetch(
-            `${API_BASE}/spread?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}&spread_type=${spreadType}`
+            `${API_BASE}/spread?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}&spread_type=${spreadType}&window=${SIGNAL_WINDOW}`
           ),
           fetch(
             `${API_BASE}/risk/breakdown?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&end=${dateRange.end}`
@@ -81,12 +85,12 @@ export default function CorrelationTradingPage() {
         setSpreadData(spread);
         setRiskData(risk);
 
-        setPairSignals((prev) => ({
-          ...prev,
-          [`${pair.ticker_a}_${pair.ticker_b}`]: getSignalLevel(
-            spread.metrics.current_zscore
-          ),
-        }));
+        const signalLevel = getSignalLevel(spread.metrics.current_zscore);
+        setPairSignals((prev) => {
+          const next = { ...prev };
+          next[signalKey] = signalLevel;
+          return next;
+        });
       } catch (e: any) {
         const msg = e.message ?? "Failed to load data";
         setError(msg);

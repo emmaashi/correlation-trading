@@ -50,17 +50,20 @@ def cached_market_data(dates, ticker):
 
 
 class TestSpreadDataLoader(unittest.TestCase):
+    @staticmethod
+    def _pair_frame(periods):
+        return pd.DataFrame({
+            "Date": pd.date_range(start="2023-01-01", periods=periods),
+            "Close_MSFT": 100.0 + np.arange(periods) * 0.5,
+            "Ticker_MSFT": ["MSFT"] * periods,
+            "Close_GOOGL": [100.0] * periods,
+            "Ticker_GOOGL": ["GOOGL"] * periods,
+        })
+
     def test_spread_api_returns_current_zscore_components(self):
         from app import app
 
-        dates = pd.date_range(start="2023-01-01", periods=100)
-        mock_df = pd.DataFrame({
-            "Date": dates,
-            "Close_MSFT": 100.0 + np.arange(100) * 0.5,
-            "Ticker_MSFT": ["MSFT"] * 100,
-            "Close_GOOGL": [100.0] * 100,
-            "Ticker_GOOGL": ["GOOGL"] * 100,
-        })
+        mock_df = self._pair_frame(100)
 
         with patch("app.load_pair_data") as mock_load:
             mock_load.return_value = mock_df
@@ -76,6 +79,27 @@ class TestSpreadDataLoader(unittest.TestCase):
                 self.assertEqual(metrics["zscore_window"], 20.0)
                 self.assertIn("current_mean", metrics)
                 self.assertIn("current_std", metrics)
+                self.assertNotIn("mean", metrics)
+
+                first_signal_point = data["data"][19]
+                expected_window = np.log(
+                    mock_df["Close_MSFT"].iloc[:20]
+                    / mock_df["Close_GOOGL"].iloc[:20]
+                )
+                self.assertIsNone(data["data"][18]["rolling_mean"])
+                self.assertIsNone(data["data"][18]["band_2_upper"])
+                self.assertAlmostEqual(
+                    first_signal_point["rolling_mean"],
+                    expected_window.mean(),
+                )
+                self.assertAlmostEqual(
+                    first_signal_point["rolling_std"],
+                    expected_window.std(),
+                )
+                self.assertAlmostEqual(
+                    first_signal_point["band_2_upper"],
+                    expected_window.mean() + 2 * expected_window.std(),
+                )
 
                 expected_zscore = (
                     metrics["current"] - metrics["current_mean"]
@@ -85,6 +109,113 @@ class TestSpreadDataLoader(unittest.TestCase):
                     expected_zscore,
                     places=6,
                 )
+
+    def test_historical_bands_do_not_use_future_spread_values(self):
+        from analysis.spread import calculate_spread_metrics
+
+        base = pd.DataFrame({
+            "Date": pd.date_range("2024-01-01", periods=6),
+            "Close_A": [10.0, 11.0, 12.0, 13.0, 14.0, 15.0],
+            "Close_B": [10.0] * 6,
+        })
+        changed_future = base.copy()
+        changed_future.loc[3:, "Close_A"] = [1000.0, 2000.0, 3000.0]
+
+        result, _ = calculate_spread_metrics(
+            base, "A", "B", spread_type="difference", window=3
+        )
+        changed_result, _ = calculate_spread_metrics(
+            changed_future, "A", "B", spread_type="difference", window=3
+        )
+
+        for field in (
+            "rolling_mean",
+            "rolling_std",
+            "band_1_upper",
+            "band_1_lower",
+            "band_2_upper",
+            "band_2_lower",
+            "zscore",
+        ):
+            self.assertAlmostEqual(result.loc[2, field], changed_result.loc[2, field])
+
+    def test_insufficient_signal_history_is_unavailable(self):
+        from analysis.spread import calculate_spread_metrics
+
+        result, metrics = calculate_spread_metrics(
+            self._pair_frame(20),
+            "MSFT",
+            "GOOGL",
+            spread_type="log_ratio",
+            window=60,
+        )
+
+        self.assertIsNone(metrics["current_mean"])
+        self.assertIsNone(metrics["current_std"])
+        self.assertIsNone(metrics["current_zscore"])
+        self.assertTrue(pd.isna(result.iloc[-1]["rolling_mean"]))
+        self.assertTrue(pd.isna(result.iloc[-1]["zscore"]))
+
+    def test_zero_variance_signal_is_unavailable_not_zero(self):
+        from app import app
+
+        mock_df = self._pair_frame(60)
+        mock_df["Close_MSFT"] = 100.0
+
+        with patch("app.load_pair_data", return_value=mock_df):
+            with app.test_client() as client:
+                response = client.get(
+                    "/api/spread?ticker_a=MSFT&ticker_b=GOOGL&window=60"
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertEqual(payload["metrics"]["current_std"], 0.0)
+        self.assertIsNone(payload["metrics"]["current_zscore"])
+        self.assertEqual(
+            payload["data"][-1]["band_2_upper"],
+            payload["data"][-1]["rolling_mean"],
+        )
+        self.assertIsNone(payload["data"][-1]["zscore"])
+
+    def test_spread_request_validation_returns_400(self):
+        from app import app
+
+        cases = [
+            ("window=abc", "window must be an integer"),
+            ("window=1", "window must be at least 2"),
+            (
+                "start=2024-02-01&end=2024-01-01",
+                "start must be before end",
+            ),
+            ("start=not-a-date", "start must be in YYYY-MM-DD format"),
+        ]
+
+        with patch("app.load_pair_data") as mock_load:
+            with app.test_client() as client:
+                for query, expected_error in cases:
+                    with self.subTest(query=query):
+                        response = client.get(
+                            "/api/spread?ticker_a=MSFT&ticker_b=GOOGL&" + query
+                        )
+                        self.assertEqual(response.status_code, 400)
+                        self.assertEqual(
+                            response.get_json()["error"], expected_error
+                        )
+
+        mock_load.assert_not_called()
+
+    def test_fewer_observations_than_window_returns_400(self):
+        from app import app
+
+        with patch("app.load_pair_data", return_value=self._pair_frame(20)):
+            with app.test_client() as client:
+                response = client.get(
+                    "/api/spread?ticker_a=MSFT&ticker_b=GOOGL"
+                )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("60 overlapping observations", response.get_json()["error"])
 
     def test_stock_data_cache_path_is_versioned(self):
         from analysis.data_loader import CACHE_VERSION, get_data_path

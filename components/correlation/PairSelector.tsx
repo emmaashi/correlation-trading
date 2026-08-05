@@ -7,6 +7,7 @@ import {
   PairInfo,
   PAIRS,
   SECTOR_COLORS,
+  SIGNAL_WINDOW,
 } from "@/lib/correlationTypes";
 import SignalBadge from "./SignalBadge";
 import type { SignalLevel } from "@/lib/correlationTypes";
@@ -14,7 +15,7 @@ import type { SignalLevel } from "@/lib/correlationTypes";
 interface PairSelectorProps {
   onSelect: (pair: PairInfo) => void;
   selectedPair: PairInfo | null;
-  pairSignals: Record<string, SignalLevel>;
+  pairSignals: Record<string, SignalLevel | null>;
   dateRange: { start: string; end: string };
   onError: (message: string) => void;
 }
@@ -65,21 +66,22 @@ export default function PairSelector({
         ticker_b: b,
         start: dateRange.start,
         end: dateRange.end,
-        max_lag: "0",
+        window: String(SIGNAL_WINDOW),
       });
-      const pairRes = await fetch(`/api/correlation?${pairParams}`);
+      const pairRes = await fetch(`/api/spread?${pairParams}`);
       const pairData = await pairRes.json();
-      const hasUsableData =
+      const hasUsableSignal =
         pairRes.ok &&
-        Array.isArray(pairData.data) &&
-        pairData.data.some(
-          (point: { correlation?: number | null }) =>
-            typeof point.correlation === "number"
-        );
+        typeof pairData.metrics?.num_observations === "number" &&
+        pairData.metrics.num_observations >= SIGNAL_WINDOW &&
+        typeof pairData.metrics.current_zscore === "number" &&
+        Number.isFinite(pairData.metrics.current_zscore);
 
-      if (!hasUsableData) {
+      if (!hasUsableSignal) {
         onError(
-          `"${a}/${b}" does not have enough overlapping price history for this date range`
+          pairRes.ok
+            ? `"${a}/${b}" needs at least ${SIGNAL_WINDOW} overlapping observations for its trading signal`
+            : pairData.error ?? `Could not validate overlapping history for "${a}/${b}"`
         );
         return;
       }
@@ -165,6 +167,10 @@ export default function PairSelector({
         {PAIRS.map((pair) => {
           const key = `${pair.ticker_a}_${pair.ticker_b}`;
           const signal = pairSignals[key];
+          const hasSignalResult = Object.prototype.hasOwnProperty.call(
+            pairSignals,
+            key
+          );
           const selected = isSelected(pair);
           const sectorColor = SECTOR_COLORS[pair.sector] ?? "#888";
 
@@ -203,7 +209,13 @@ export default function PairSelector({
                   >
                     {pair.sector}
                   </span>
-                  {signal && <SignalBadge level={signal} size="sm" />}
+                  {signal ? (
+                    <SignalBadge level={signal} size="sm" />
+                  ) : hasSignalResult ? (
+                    <span className="text-[10px] font-medium text-neutral-500">
+                      Unavailable
+                    </span>
+                  ) : null}
                 </div>
               </div>
             </motion.button>

@@ -100,16 +100,12 @@ export default function SpreadAnalysisCharts({
   tickerA,
   tickerB,
 }: SpreadAnalysisChartsProps) {
-  const mean = metrics.mean;
-  const std = metrics.std;
-
   const enriched = data.map((d) => ({
     ...d,
-    band1Upper: mean + std,
-    band1Lower: mean - std,
-    band2Upper: mean + 2 * std,
-    band2Lower: mean - 2 * std,
-    spreadMean: mean,
+    band1Range:
+      d.band_1_lower === null || d.band_1_upper === null
+        ? null
+        : [d.band_1_lower, d.band_1_upper],
     zUpper: 2,
     zLower: -2,
     zZero: 0,
@@ -204,7 +200,7 @@ export default function SpreadAnalysisCharts({
           </ChartInfoTooltip>
         </div>
         <p className="text-xs text-neutral-500 mb-4">
-          Spread value with ±1σ and ±2σ bands around the historical mean
+          Spread with point-in-time ±1σ and ±2σ bands from the trailing {metrics.zscore_window}-day window
         </p>
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -230,31 +226,77 @@ export default function SpreadAnalysisCharts({
                         label: "Spread",
                         precision: 4,
                       },
+                      {
+                        color: "#ef4444",
+                        dataKey: "rolling_mean",
+                        label: "Rolling Mean",
+                        precision: 4,
+                      },
+                      {
+                        color: "#a3a3a3",
+                        dataKey: "rolling_std",
+                        label: "Rolling Std",
+                        precision: 4,
+                      },
                     ]}
                   />
                 }
               />
-              {/* ±2σ band */}
-              <ReferenceLine y={mean + 2 * std} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1} strokeOpacity={0.5} />
-              <ReferenceLine y={mean - 2 * std} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={1} strokeOpacity={0.5} />
-              {/* ±1σ band */}
-              <ReferenceLine y={mean + std} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} strokeOpacity={0.4} />
-              <ReferenceLine y={mean - std} stroke="#f59e0b" strokeDasharray="4 4" strokeWidth={1} strokeOpacity={0.4} />
-              {/* Mean */}
-              <ReferenceLine y={mean} stroke="#ef4444" strokeDasharray="6 3" strokeWidth={1.5} strokeOpacity={0.7} />
-              {/* ±1σ shaded area */}
               <Area
                 type="monotone"
-                dataKey="band1Upper"
-                stroke="none"
-                fill="transparent"
-                activeDot={false}
-              />
-              <Area
-                type="monotone"
-                dataKey="band1Lower"
+                dataKey="band1Range"
                 stroke="none"
                 fill="rgba(245,158,11,0.06)"
+                activeDot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="band_2_upper"
+                stroke="#ef4444"
+                strokeDasharray="4 4"
+                strokeWidth={1}
+                strokeOpacity={0.5}
+                dot={false}
+                activeDot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="band_2_lower"
+                stroke="#ef4444"
+                strokeDasharray="4 4"
+                strokeWidth={1}
+                strokeOpacity={0.5}
+                dot={false}
+                activeDot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="band_1_upper"
+                stroke="#f59e0b"
+                strokeDasharray="4 4"
+                strokeWidth={1}
+                strokeOpacity={0.4}
+                dot={false}
+                activeDot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="band_1_lower"
+                stroke="#f59e0b"
+                strokeDasharray="4 4"
+                strokeWidth={1}
+                strokeOpacity={0.4}
+                dot={false}
+                activeDot={false}
+              />
+              <Line
+                type="monotone"
+                dataKey="rolling_mean"
+                stroke="#ef4444"
+                strokeDasharray="6 3"
+                strokeWidth={1.5}
+                strokeOpacity={0.7}
+                dot={false}
                 activeDot={false}
               />
               <Line

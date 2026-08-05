@@ -111,7 +111,7 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
   const spreadBins = buildBins(spreads, 40);
   const zscoreBins = buildBins(zscores, 40);
 
-  const spreadMean = metrics.mean;
+  const spreadMean = metrics.descriptive_mean;
   const spreadMedian = [...spreads].sort((a, b) => a - b)[Math.floor(spreads.length / 2)] ?? 0;
 
   return (
@@ -130,7 +130,7 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
           </ChartInfoTooltip>
         </div>
         <p className="text-xs text-neutral-500 mb-4">
-          Histogram of spread values with mean and median
+          Descriptive full-period spread values with mean and median
         </p>
         <div className="h-[220px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -152,13 +152,15 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
                   />
                 }
               />
-              <ReferenceLine
-                x={spreadMean}
-                stroke="#ef4444"
-                strokeDasharray="4 4"
-                strokeWidth={1.5}
-                label={{ value: "Mean", position: "top", fill: "#ef4444", fontSize: 10 }}
-              />
+              {spreadMean !== null && (
+                <ReferenceLine
+                  x={spreadMean}
+                  stroke="#ef4444"
+                  strokeDasharray="4 4"
+                  strokeWidth={1.5}
+                  label={{ value: "Mean", position: "top", fill: "#ef4444", fontSize: 10 }}
+                />
+              )}
               <ReferenceLine
                 x={spreadMedian}
                 stroke="#c28b00"

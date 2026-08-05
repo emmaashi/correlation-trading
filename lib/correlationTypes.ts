@@ -24,6 +24,12 @@ export interface SpreadPoint {
   norm_a: number | null;
   norm_b: number | null;
   spread: number | null;
+  rolling_mean: number | null;
+  rolling_std: number | null;
+  band_1_upper: number | null;
+  band_1_lower: number | null;
+  band_2_upper: number | null;
+  band_2_lower: number | null;
   zscore: number | null;
 }
 
@@ -32,15 +38,19 @@ export interface SpreadMetrics {
   ticker_a: string;
   ticker_b: string;
   num_observations: number;
-  mean: number;
-  std: number;
-  min: number;
-  max: number;
-  current: number;
-  current_mean?: number;
-  current_std?: number;
-  current_zscore: number;
-  zscore_window?: number | null;
+  descriptive_mean: number | null;
+  descriptive_std: number | null;
+  descriptive_min: number | null;
+  descriptive_max: number | null;
+  current: number | null;
+  current_mean: number | null;
+  current_std: number | null;
+  current_band_1_upper: number | null;
+  current_band_1_lower: number | null;
+  current_band_2_upper: number | null;
+  current_band_2_lower: number | null;
+  current_zscore: number | null;
+  zscore_window: number;
 }
 
 export interface SpreadResponse {
@@ -63,6 +73,8 @@ export interface RiskBreakdownResponse {
 
 export type SignalLevel = "normal" | "watch" | "signal";
 export type SignalDirection = "long" | "short" | "hold";
+
+export const SIGNAL_WINDOW = 60;
 
 export const SECTOR_COLORS: Record<string, string> = {
   Technology: "#8b5cf6",
@@ -93,14 +105,20 @@ export const PAIRS: PairInfo[] = [
   { ticker_a: "WMT",   ticker_b: "TGT",   name_a: "Walmart",           name_b: "Target",            sector: "Retail" },
 ];
 
-export function getSignalLevel(zscore: number): SignalLevel {
+export function getSignalLevel(
+  zscore: number | null | undefined
+): SignalLevel | null {
+  if (zscore == null || !Number.isFinite(zscore)) return null;
   const abs = Math.abs(zscore);
   if (abs >= 2) return "signal";
   if (abs >= 1) return "watch";
   return "normal";
 }
 
-export function getSignalDirection(zscore: number): SignalDirection {
+export function getSignalDirection(
+  zscore: number | null | undefined
+): SignalDirection | null {
+  if (zscore == null || !Number.isFinite(zscore)) return null;
   if (zscore >= 2) return "short";
   if (zscore <= -2) return "long";
   return "hold";

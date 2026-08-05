@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -50,6 +51,52 @@ class TestCorrelationAnalysis(unittest.TestCase):
         self.assertTrue(
             any(pair["ticker_a"] == "DDOG" and pair["ticker_b"] == "NET" for pair in pairs)
         )
+
+    def test_correlation_request_validation_returns_400(self):
+        from app import app
+
+        cases = [
+            ("max_lag=abc", "max_lag must be an integer"),
+            ("max_lag=-1", "max_lag must be non-negative"),
+            (
+                "start=2024-02-01&end=2024-02-01",
+                "start must be before end",
+            ),
+        ]
+
+        with patch("app.load_pair_data") as mock_load:
+            with app.test_client() as client:
+                for query, expected_error in cases:
+                    with self.subTest(query=query):
+                        response = client.get(
+                            "/api/correlation?ticker_a=MSFT&ticker_b=GOOGL&"
+                            + query
+                        )
+                        self.assertEqual(response.status_code, 400)
+                        self.assertEqual(
+                            response.get_json()["error"], expected_error
+                        )
+
+        mock_load.assert_not_called()
+
+    def test_too_few_correlation_observations_returns_400(self):
+        from app import app
+
+        periods = 5
+        mock_df = pd.DataFrame({
+            "Date": pd.date_range("2024-01-01", periods=periods),
+            "Close_MSFT": 100.0 + np.arange(periods),
+            "Close_GOOGL": 90.0 + np.arange(periods),
+        })
+
+        with patch("app.load_pair_data", return_value=mock_df):
+            with app.test_client() as client:
+                response = client.get(
+                    "/api/correlation?ticker_a=MSFT&ticker_b=GOOGL&max_lag=3"
+                )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("6 overlapping observations", response.get_json()["error"])
 
 
 if __name__ == "__main__":
