@@ -140,6 +140,7 @@ export default function CorrelationTradingPage() {
                 onSelect={handleSelect}
                 selectedPair={selectedPair}
                 pairSignals={pairSignals}
+                dateRange={dateRange}
                 onError={(msg) => setToast({ message: msg, type: "error" })}
               />
             </motion.div>
