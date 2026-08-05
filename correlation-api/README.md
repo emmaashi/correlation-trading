@@ -44,10 +44,30 @@ Dates are `YYYY-MM-DD`. `spread_type` is one of the values supported by `analysi
 2. **`load_pair_data`** (`analysis/data_loader.py`) fetches each ticker via `get_stock_data`, then inner-joins on `Date`.
 3. **`get_stock_data`** is the cache layer:
    - Looks for `data/raw/<TICKER>_<start>_to_<end>_<VERSION>_raw.csv` — if present and valid, reads it and returns immediately.
-   - Otherwise calls `yfinance.download(ticker, start, end)`, normalises columns to `[Date, Close, Ticker]`, writes the CSV, and returns.
+   - Otherwise calls `yfinance.download` with `auto_adjust=False` and `actions=True`. This preserves Yahoo's adjusted close, raw close, and available action data in one response.
+   - Rejects downloads without `Adj Close`; research prices never silently fall back to raw close.
+   - Validates the requested date range, row dates, prices, and action values before writing the CSV.
 4. **Analysis modules** (`correlation.py`, `spread.py`) consume the merged DataFrame and produce the JSON the frontend renders.
 
-The cache key is the **exact** `(ticker, start, end)` tuple, so different date ranges produce different files. Cache files live under `correlation-api/data/raw/` and are gitignored — wipe them anytime to force a fresh fetch.
+### Market data contract
+
+`get_stock_data` returns one row per trading date with the following columns:
+
+| Column | Meaning |
+|--------|---------|
+| `Date` | Unique, ascending, timezone-naive trading date |
+| `Close` | Yahoo `Adj Close`, used by all research correlation, return, and spread calculations |
+| `RawClose` | Yahoo unadjusted `Close`, retained for future execution simulation |
+| `Dividends` | Cash dividend action amount reported by Yahoo; zero on other rows |
+| `StockSplits` | Split ratio reported by Yahoo; zero on other rows |
+| `CapitalGains` | Capital-gains distribution when Yahoo supplies it, mainly for funds |
+| `Ticker` | Uppercase ticker symbol |
+
+Both price columns must be finite and strictly positive. Action columns must be finite and non-negative. Pair data suffixes every non-date field with its ticker, so consumers continue to use `Close_<TICKER>` while raw and action fields remain available as `RawClose_<TICKER>`, `Dividends_<TICKER>`, and so on.
+
+The cache key is the **exact** `(ticker, start, end)` tuple, so different date ranges produce different files. Cache schema `v4` is required; pre-`v4` files contain unadjusted research closes and are not reused. Cache files live under `correlation-api/data/raw/` and are gitignored. Delete them anytime to force a fresh fetch.
+
+Yahoo's adjusted close reflects its current split and distribution history, which Yahoo can revise. It is appropriate for historical research but is not a point-in-time execution price. `RawClose` and the action columns preserve inputs needed for a future daily execution model, but they do not provide intraday prices, publication timestamps, fees, slippage, or survivorship-bias controls.
 
 ```
 correlation-api/
