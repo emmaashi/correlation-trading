@@ -18,6 +18,7 @@ import {
   formatChartAxisDate,
   formatChartTooltipDate,
 } from "@/lib/dateUtils";
+import ChartInfoTooltip from "./ChartInfoTooltip";
 
 interface SpreadAnalysisChartsProps {
   data: SpreadPoint[];
@@ -118,9 +119,17 @@ export default function SpreadAnalysisCharts({
     <div className="space-y-4">
       {/* Normalized Prices */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Normalized Price Comparison
-        </h3>
+        <div className="mb-1 flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Normalized Price Comparison
+          </h3>
+          <ChartInfoTooltip label="Normalized Price Comparison">
+            Rebases both stocks to 100 on the first day so their percentage
+            performance can be compared directly. A value of 150 means a 50%
+            gain over the selected period. These values are indexes, not share
+            prices.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
           Both stocks rebased to 100 at the start of the period
         </p>
@@ -184,9 +193,18 @@ export default function SpreadAnalysisCharts({
 
       {/* Spread with Bands */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Spread with Mean Reversion Bands
-        </h3>
+        <div className="mb-1 flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Spread with Mean Reversion Bands
+          </h3>
+          <ChartInfoTooltip label="Spread with Mean Reversion Bands">
+            Tracks the selected spread of {tickerA} relative to {tickerB}. The
+            center line is its historical mean; amber and red bands mark one and
+            two standard deviations. Repeated moves back toward the mean support
+            a mean-reversion thesis, while persistent breaks can signal a regime
+            change.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
           Spread value with ±1σ and ±2σ bands around the historical mean
         </p>
@@ -256,9 +274,16 @@ export default function SpreadAnalysisCharts({
 
       {/* Z-Score */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Spread Z-Score
-        </h3>
+        <div className="mb-1 flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Spread Z-Score
+          </h3>
+          <ChartInfoTooltip label="Spread Z-Score">
+            Expresses the spread&apos;s distance from its rolling 60-day mean in
+            standard deviations. Zero is typical, values beyond ±1 are worth
+            watching, and moves beyond ±2 are potential pair-trade signals.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
           Standardized spread — values beyond ±2 indicate potential trading signals
         </p>

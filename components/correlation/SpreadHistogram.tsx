@@ -12,6 +12,7 @@ import {
   Cell,
 } from "recharts";
 import { SpreadPoint, SpreadMetrics } from "@/lib/correlationTypes";
+import ChartInfoTooltip from "./ChartInfoTooltip";
 
 interface SpreadHistogramProps {
   data: SpreadPoint[];
@@ -117,9 +118,17 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Spread Distribution */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Spread Distribution
-        </h3>
+        <div className="mb-1 flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Spread Distribution
+          </h3>
+          <ChartInfoTooltip label="Spread Distribution">
+            Counts how often each spread level occurred. A tight single cluster
+            suggests a more stable relationship. A wide or multi-peaked shape
+            can indicate greater volatility or changing market regimes. The mean
+            and median help reveal skew.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
           Histogram of spread values with mean and median
         </p>
@@ -173,9 +182,17 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
 
       {/* Z-Score Distribution */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Z-Score Distribution
-        </h3>
+        <div className="mb-1 flex items-start justify-between gap-3">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Z-Score Distribution
+          </h3>
+          <ChartInfoTooltip label="Z-Score Distribution">
+            Counts how often standardized spread readings occurred. Green bars
+            fall within ±2. Red tails are rare historical extremes that may offer
+            mean-reversion entries. An uneven shape shows that divergences have
+            favored one direction.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
           Histogram of z-score values — tails beyond ±2 highlighted
         </p>
