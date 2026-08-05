@@ -124,10 +124,9 @@ export default function SpreadAnalysisCharts({
             Normalized Price Comparison
           </h3>
           <ChartInfoTooltip label="Normalized Price Comparison">
-            Rebases both stocks to 100 on the first day so their percentage
-            performance can be compared directly. A value of 150 means a 50%
-            gain over the selected period. These values are indexes, not share
-            prices.
+            Puts both stocks at the same starting value so you can see which has
+            outperformed and when their returns diverge. A widening gap suggests
+            relative momentum. A closing gap suggests mean reversion.
           </ChartInfoTooltip>
         </div>
         <p className="text-xs text-neutral-500 mb-4">
