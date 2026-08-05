@@ -118,7 +118,7 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Spread Distribution */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <div className="mb-1 flex items-start justify-between gap-3">
+        <div className="mb-1 flex items-start gap-1.5">
           <h3 className="text-sm font-semibold text-neutral-300">
             Spread Distribution
           </h3>
@@ -182,7 +182,7 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
 
       {/* Z-Score Distribution */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <div className="mb-1 flex items-start justify-between gap-3">
+        <div className="mb-1 flex items-start gap-1.5">
           <h3 className="text-sm font-semibold text-neutral-300">
             Z-Score Distribution
           </h3>

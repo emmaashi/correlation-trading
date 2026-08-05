@@ -119,7 +119,7 @@ export default function SpreadAnalysisCharts({
     <div className="space-y-4">
       {/* Normalized Prices */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <div className="mb-1 flex items-start justify-between gap-3">
+        <div className="mb-1 flex items-start gap-1.5">
           <h3 className="text-sm font-semibold text-neutral-300">
             Normalized Price Comparison
           </h3>
@@ -193,7 +193,7 @@ export default function SpreadAnalysisCharts({
 
       {/* Spread with Bands */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <div className="mb-1 flex items-start justify-between gap-3">
+        <div className="mb-1 flex items-start gap-1.5">
           <h3 className="text-sm font-semibold text-neutral-300">
             Spread with Mean Reversion Bands
           </h3>
@@ -274,7 +274,7 @@ export default function SpreadAnalysisCharts({
 
       {/* Z-Score */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <div className="mb-1 flex items-start justify-between gap-3">
+        <div className="mb-1 flex items-start gap-1.5">
           <h3 className="text-sm font-semibold text-neutral-300">
             Spread Z-Score
           </h3>
