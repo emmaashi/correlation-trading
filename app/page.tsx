@@ -11,7 +11,6 @@ import MetricsPanel from "@/components/correlation/MetricsPanel";
 import SpreadHistogram from "@/components/correlation/SpreadHistogram";
 import Toast from "@/components/correlation/Toast";
 import RiskWarningBanner from "@/components/correlation/RiskWarningBanner";
-import ResearchNav from "@/components/strategy/ResearchNav";
 
 import type {
   PairInfo,
@@ -190,9 +189,8 @@ export default function CorrelationTradingPage() {
         />
       )}
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 min-h-[calc(100vh-80px)]">
-        <ResearchNav />
-        <AnimatePresence mode="wait">
+      <div className="max-w-6xl mx-auto min-h-[calc(100vh-68px)] px-4 pb-8 sm:px-6">
+        <AnimatePresence initial={false} mode="wait">
           {!selectedPair ? (
             <motion.div
               key="selector"
