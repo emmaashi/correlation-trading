@@ -12,6 +12,7 @@ import {
   Cell,
 } from "recharts";
 import { SpreadPoint, SpreadMetrics } from "@/lib/correlationTypes";
+import ChartInfoTooltip from "./ChartInfoTooltip";
 
 interface SpreadHistogramProps {
   data: SpreadPoint[];
@@ -117,9 +118,17 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Spread Distribution */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Spread Distribution
-        </h3>
+        <div className="mb-1 flex items-start gap-1.5">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Spread Distribution
+          </h3>
+          <ChartInfoTooltip label="Spread Distribution">
+            Shows the spread levels the pair visits most often. A tight single
+            cluster supports a stable range for mean-reversion trades. A wide or
+            multi-peaked shape warns that the relationship is unstable and entry
+            thresholds may be unreliable.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
           Histogram of spread values with mean and median
         </p>
@@ -173,9 +182,17 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
 
       {/* Z-Score Distribution */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Z-Score Distribution
-        </h3>
+        <div className="mb-1 flex items-start gap-1.5">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Z-Score Distribution
+          </h3>
+          <ChartInfoTooltip label="Z-Score Distribution">
+            Shows how often the pair reaches each level of divergence. Small red
+            tails mean ±2 readings are rare and may offer useful entry signals.
+            Large or uneven tails suggest frequent extremes or directional bias,
+            which weakens a simple mean-reversion strategy.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
           Histogram of z-score values — tails beyond ±2 highlighted
         </p>

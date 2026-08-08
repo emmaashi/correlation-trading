@@ -11,6 +11,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { CorrelationPoint } from "@/lib/correlationTypes";
+import ChartInfoTooltip from "./ChartInfoTooltip";
 
 interface LagCorrelationChartProps {
   data: CorrelationPoint[];
@@ -34,9 +35,17 @@ export default function LagCorrelationChart({
 }: LagCorrelationChartProps) {
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-      <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-        Lagged Correlation
-      </h3>
+      <div className="mb-1 flex items-start gap-1.5">
+        <h3 className="text-sm font-semibold text-neutral-300">
+          Lagged Correlation
+        </h3>
+        <ChartInfoTooltip label="Lagged Correlation">
+          Shows whether one stock&apos;s daily returns tend to lead the other&apos;s. A
+          strong peak at a positive lag suggests {tickerA} moves first. A strong
+          negative lag suggests {tickerB} moves first. A peak at lag 0 means they
+          mainly move together on the same day.
+        </ChartInfoTooltip>
+      </div>
       <p className="text-xs text-neutral-500 mb-4">
         Pearson correlation of daily log returns at different lags between {tickerA} and {tickerB}
       </p>

@@ -18,6 +18,7 @@ import {
   formatChartAxisDate,
   formatChartTooltipDate,
 } from "@/lib/dateUtils";
+import ChartInfoTooltip from "./ChartInfoTooltip";
 
 interface SpreadAnalysisChartsProps {
   data: SpreadPoint[];
@@ -118,9 +119,16 @@ export default function SpreadAnalysisCharts({
     <div className="space-y-4">
       {/* Normalized Prices */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Normalized Price Comparison
-        </h3>
+        <div className="mb-1 flex items-start gap-1.5">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Normalized Price Comparison
+          </h3>
+          <ChartInfoTooltip label="Normalized Price Comparison">
+            Puts both stocks at the same starting value so you can see which has
+            outperformed and when their returns diverge. A widening gap suggests
+            relative momentum. A closing gap suggests mean reversion.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
           Both stocks rebased to 100 at the start of the period
         </p>
@@ -184,9 +192,17 @@ export default function SpreadAnalysisCharts({
 
       {/* Spread with Bands */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Spread with Mean Reversion Bands
-        </h3>
+        <div className="mb-1 flex items-start gap-1.5">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Spread with Mean Reversion Bands
+          </h3>
+          <ChartInfoTooltip label="Spread with Mean Reversion Bands">
+            Shows how far {tickerA} has moved relative to {tickerB} versus their
+            historical relationship. Touches of the outer bands can flag a
+            stretched pair and possible mean-reversion entry. Staying outside the
+            bands may signal a regime change.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
           Spread value with ±1σ and ±2σ bands around the historical mean
         </p>
@@ -256,9 +272,16 @@ export default function SpreadAnalysisCharts({
 
       {/* Z-Score */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Spread Z-Score
-        </h3>
+        <div className="mb-1 flex items-start gap-1.5">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Spread Z-Score
+          </h3>
+          <ChartInfoTooltip label="Spread Z-Score">
+            Shows how unusual the spread is versus its 60-day average. Above +2
+            can favor short {tickerA} and long {tickerB}. Below -2 can favor the
+            reverse. A move back toward 0 is the mean-reversion thesis.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
           Standardized spread — values beyond ±2 indicate potential trading signals
         </p>
