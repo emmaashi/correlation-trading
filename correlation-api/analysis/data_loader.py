@@ -5,27 +5,44 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-CACHE_VERSION = "v4"
+CACHE_VERSION = "v5"
 DOWNLOAD_LOCK = threading.Lock()
 
 REQUIRED_DATA_COLUMNS = (
     "Date",
+    "Open",
+    "High",
+    "Low",
     "Close",
+    "RawOpen",
+    "RawHigh",
+    "RawLow",
     "RawClose",
+    "Volume",
     "Dividends",
     "StockSplits",
     "Ticker",
 )
 REQUIRED_NUMERIC_COLUMNS = (
+    "Open",
+    "High",
+    "Low",
     "Close",
+    "RawOpen",
+    "RawHigh",
+    "RawLow",
     "RawClose",
+    "Volume",
     "Dividends",
     "StockSplits",
 )
 OPTIONAL_ACTION_COLUMNS = ("CapitalGains",)
 DOWNLOAD_FIELD_MAP = {
-    "Adj Close": "Close",
+    "Open": "RawOpen",
+    "High": "RawHigh",
+    "Low": "RawLow",
     "Close": "RawClose",
+    "Volume": "Volume",
     "Dividends": "Dividends",
     "Stock Splits": "StockSplits",
 }
@@ -117,9 +134,20 @@ def _validated_market_data(df, ticker, start_date, end_date):
             raise ValueError(f"{column} contains invalid or missing numeric values")
         validated[column] = values.astype(float)
 
-    for column in ("Close", "RawClose"):
+    for column in (
+        "Open",
+        "High",
+        "Low",
+        "Close",
+        "RawOpen",
+        "RawHigh",
+        "RawLow",
+        "RawClose",
+    ):
         if (validated[column] <= 0).any():
             raise ValueError(f"{column} must contain strictly positive prices")
+    if (validated["Volume"] < 0).any():
+        raise ValueError("Volume must contain non-negative values")
     for column in ("Dividends", "StockSplits", *OPTIONAL_ACTION_COLUMNS):
         if column in validated.columns and (validated[column] < 0).any():
             raise ValueError(f"{column} must contain non-negative action values")
@@ -205,6 +233,24 @@ def _normalize_downloaded_data(df, ticker):
     for download_field, output_field in DOWNLOAD_FIELD_MAP.items():
         normalized[output_field] = _download_field(df, download_field, ticker)
 
+    adjusted_close = pd.to_numeric(
+        _download_field(df, "Adj Close", ticker), errors="coerce"
+    )
+    raw_close = pd.to_numeric(normalized["RawClose"], errors="coerce")
+    if (
+        adjusted_close.isna().any()
+        or not np.isfinite(adjusted_close).all()
+        or (adjusted_close <= 0).any()
+    ):
+        raise ValueError(
+            f"Downloaded data for {ticker} has invalid 'Adj Close' data"
+        )
+    adjustment_factor = adjusted_close / raw_close
+    normalized["Open"] = normalized["RawOpen"] * adjustment_factor
+    normalized["High"] = normalized["RawHigh"] * adjustment_factor
+    normalized["Low"] = normalized["RawLow"] * adjustment_factor
+    normalized["Close"] = adjusted_close
+
     capital_gains = _download_field(df, "Capital Gains", ticker, required=False)
     if capital_gains is not None:
         normalized["CapitalGains"] = capital_gains
@@ -235,7 +281,7 @@ def get_stock_data(ticker, start_date, end_date, cache=True):
         cache (bool): If True, load from or save to local CSV cache.
 
     Returns:
-        pd.DataFrame: Adjusted research close, raw close, and action data.
+        pd.DataFrame: Adjusted OHLC, raw OHLC, volume, and action data.
     """
     requested_start, requested_end = _validate_date_range(start_date, end_date)
     start = requested_start.date().isoformat()
@@ -287,23 +333,41 @@ def load_pair_data(ticker_a, ticker_b, start_date, end_date, cache=True):
     Returns:
         pd.DataFrame: Merged DataFrame with aligned 'Date', 'Close_<ticker>' columns.
     """
-    print(f"Loading data for {ticker_a}")
-    df_a = get_stock_data(ticker_a, start_date, end_date, cache)
-
-    print(f"Loading data for {ticker_b}")
-    df_b = get_stock_data(ticker_b, start_date, end_date, cache)
-
-    # Retain each ticker's raw prices and actions without merge suffix ambiguity.
-    df_a = df_a.rename(
-        columns={column: f"{column}_{ticker_a}" for column in df_a if column != "Date"}
-    )
-    df_b = df_b.rename(
-        columns={column: f"{column}_{ticker_b}" for column in df_b if column != "Date"}
+    return load_universe_data(
+        [ticker_a, ticker_b], start_date, end_date, cache=cache
     )
 
-    # Merge on Date
-    merged = pd.merge(df_a, df_b, on="Date")
-    return merged
+
+def load_universe_data(tickers, start_date, end_date, cache=True):
+    """Load and inner-align market data for a collection of unique tickers."""
+    normalized_tickers = []
+    for ticker in tickers:
+        normalized = str(ticker).strip().upper()
+        if not normalized:
+            raise ValueError("tickers must not contain empty values")
+        if normalized not in normalized_tickers:
+            normalized_tickers.append(normalized)
+
+    if len(normalized_tickers) < 2:
+        raise ValueError("At least two unique tickers are required")
+
+    merged = None
+    for ticker in normalized_tickers:
+        frame = get_stock_data(ticker, start_date, end_date, cache)
+        frame = frame.rename(
+            columns={
+                column: f"{column}_{ticker}"
+                for column in frame
+                if column != "Date"
+            }
+        )
+        merged = frame if merged is None else pd.merge(merged, frame, on="Date")
+
+    if merged is None or merged.empty:
+        raise ValueError("No overlapping market data is available for the tickers")
+    if merged["Date"].duplicated().any():
+        raise ValueError("Aligned market data contains duplicate dates")
+    return merged.sort_values("Date").reset_index(drop=True)
 
 
 def load_multiple_pairs(pairs, start_date, end_date, cache=True):

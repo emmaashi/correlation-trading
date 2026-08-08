@@ -12,6 +12,10 @@ def downloaded_market_data(
     dates,
     adjusted_close=None,
     raw_close=None,
+    raw_open=None,
+    raw_high=None,
+    raw_low=None,
+    volume=None,
     dividends=None,
     stock_splits=None,
 ):
@@ -22,12 +26,20 @@ def downloaded_market_data(
         else adjusted_close
     )
     raw_close = adjusted_close if raw_close is None else raw_close
+    raw_open = raw_close if raw_open is None else raw_open
+    raw_high = np.asarray(raw_close) * 1.01 if raw_high is None else raw_high
+    raw_low = np.asarray(raw_close) * 0.99 if raw_low is None else raw_low
+    volume = np.full(row_count, 1_000_000.0) if volume is None else volume
     dividends = np.zeros(row_count) if dividends is None else dividends
     stock_splits = np.zeros(row_count) if stock_splits is None else stock_splits
     return pd.DataFrame(
         {
             "Adj Close": adjusted_close,
+            "Open": raw_open,
+            "High": raw_high,
+            "Low": raw_low,
             "Close": raw_close,
+            "Volume": volume,
             "Dividends": dividends,
             "Stock Splits": stock_splits,
         },
@@ -40,8 +52,15 @@ def cached_market_data(dates, ticker):
     return pd.DataFrame(
         {
             "Date": dates,
+            "Open": prices,
+            "High": prices * 1.01,
+            "Low": prices * 0.99,
             "Close": prices,
+            "RawOpen": prices,
+            "RawHigh": prices * 1.01,
+            "RawLow": prices * 0.99,
             "RawClose": prices,
+            "Volume": 1_000_000.0,
             "Dividends": 0.0,
             "StockSplits": 0.0,
             "Ticker": ticker,
@@ -298,7 +317,7 @@ class TestSpreadDataLoader(unittest.TestCase):
         from analysis.data_loader import CACHE_VERSION, get_data_path
 
         path = get_data_path("MSFT", "2023-01-01", "2023-02-01")
-        self.assertEqual(CACHE_VERSION, "v4")
+        self.assertEqual(CACHE_VERSION, "v5")
         self.assertIn(f"_{CACHE_VERSION}_raw.csv", path)
 
     def test_stock_data_cache_accepts_long_range_later_listing(self):
@@ -384,6 +403,7 @@ class TestSpreadDataLoader(unittest.TestCase):
             )
 
         self.assertEqual(result["Close"].tolist(), [50.0, 51.0, 51.0, 52.0, 53.0])
+        self.assertEqual(result["Open"].tolist(), [50.0, 51.0, 51.0, 52.0, 53.0])
         self.assertLess(result["RawClose"].pct_change().min(), -0.4)
         self.assertGreater(result["Close"].pct_change().min(), -0.1)
         self.assertEqual(result["StockSplits"].tolist(), [0.0, 0.0, 2.0, 0.0, 0.0])
@@ -460,12 +480,40 @@ class TestSpreadDataLoader(unittest.TestCase):
             )
 
         self.assertIn("Close_AAA", result)
+        self.assertIn("Open_AAA", result)
+        self.assertIn("Volume_AAA", result)
         self.assertIn("RawClose_AAA", result)
         self.assertIn("StockSplits_AAA", result)
         self.assertIn("Close_BBB", result)
         self.assertIn("RawClose_BBB", result)
         self.assertIn("Dividends_BBB", result)
         self.assertFalse(any(column.endswith(("_x", "_y")) for column in result))
+
+    def test_universe_loader_aligns_each_ticker_once(self):
+        from analysis.data_loader import load_universe_data
+
+        dates = pd.date_range(start="2023-01-02", periods=3)
+        frames = {
+            ticker: cached_market_data(dates, ticker)
+            for ticker in ("AAA", "BBB", "CCC")
+        }
+
+        with patch(
+            "analysis.data_loader.get_stock_data",
+            side_effect=lambda ticker, *_args: frames[ticker].copy(),
+        ) as mock_get:
+            result = load_universe_data(
+                ["aaa", "BBB", "AAA", "ccc"],
+                "2023-01-01",
+                "2023-01-06",
+                cache=False,
+            )
+
+        self.assertEqual([call.args[0] for call in mock_get.call_args_list], ["AAA", "BBB", "CCC"])
+        self.assertEqual(len(result), 3)
+        self.assertIn("Open_AAA", result)
+        self.assertIn("Close_BBB", result)
+        self.assertIn("Volume_CCC", result)
 
     def test_stock_downloads_are_serialized(self):
         from analysis.data_loader import get_stock_data
