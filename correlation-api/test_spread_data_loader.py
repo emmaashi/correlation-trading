@@ -108,6 +108,29 @@ class TestSpreadDataLoader(unittest.TestCase):
             places=2,
         )
 
+    def test_signal_api_returns_compact_trading_direction(self):
+        from app import app
+
+        mock_df = self._pair_frame(100)
+        mock_df.loc[mock_df.index[-1], "Close_MSFT"] = 250.0
+
+        with patch("app.load_pair_data") as mock_load:
+            mock_load.return_value = mock_df
+            with app.test_client() as client:
+                response = client.get(
+                    "/api/signal?ticker_a=MSFT&ticker_b=GOOGL&window=20"
+                )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["ticker_a"], "MSFT")
+        self.assertEqual(data["ticker_b"], "GOOGL")
+        self.assertEqual(data["direction"], "short")
+        self.assertGreater(data["zscore"], 2)
+        self.assertEqual(data["window"], 20)
+        self.assertNotIn("data", data)
+        self.assertNotIn("metrics", data)
+
     def test_spread_api_returns_current_zscore_components(self):
         from app import app
 

@@ -17,9 +17,13 @@ import type {
   CorrelationResponse,
   RiskBreakdownResponse,
   SpreadResponse,
-  SignalLevel,
+  TradingSignalSummary,
 } from "@/lib/correlationTypes";
-import { getSignalLevel, SIGNAL_WINDOW } from "@/lib/correlationTypes";
+import {
+  getSignalDirection,
+  PAIRS,
+  SIGNAL_WINDOW,
+} from "@/lib/correlationTypes";
 import { todayISO, yearsAgoISO } from "@/lib/dateUtils";
 
 const API_BASE = "/api";
@@ -35,8 +39,9 @@ export default function CorrelationTradingPage() {
   const [spreadData, setSpreadData] = useState<SpreadResponse | null>(null);
   const [riskData, setRiskData] = useState<RiskBreakdownResponse | null>(null);
   const [pairSignals, setPairSignals] = useState<
-    Record<string, SignalLevel | null>
+    Record<string, TradingSignalSummary | null>
   >({});
+  const [loadingPairSignals, setLoadingPairSignals] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" } | null>(null);
 
@@ -84,10 +89,20 @@ export default function CorrelationTradingPage() {
         setSpreadData(spread);
         setRiskData(risk);
 
-        const signalLevel = getSignalLevel(spread.metrics.current_zscore);
+        const zscore = spread.metrics.current_zscore;
+        const direction = getSignalDirection(zscore);
         setPairSignals((prev) => {
           const next = { ...prev };
-          next[signalKey] = signalLevel;
+          next[signalKey] =
+            zscore !== null && direction !== null
+              ? {
+                  ticker_a: pair.ticker_a,
+                  ticker_b: pair.ticker_b,
+                  zscore,
+                  direction,
+                  window: spread.metrics.zscore_window,
+                }
+              : null;
           return next;
         });
       } catch (e: any) {
@@ -100,6 +115,51 @@ export default function CorrelationTradingPage() {
     },
     [dateRange]
   );
+
+  useEffect(() => {
+    if (selectedPair) return;
+
+    const controller = new AbortController();
+    setPairSignals({});
+    setLoadingPairSignals(true);
+
+    const loadSignal = async (pair: PairInfo) => {
+      const key = `${pair.ticker_a}_${pair.ticker_b}`;
+      const params = new URLSearchParams({
+        ticker_a: pair.ticker_a,
+        ticker_b: pair.ticker_b,
+        start: dateRange.start,
+        end: dateRange.end,
+        window: String(SIGNAL_WINDOW),
+      });
+
+      try {
+        const response = await fetch(`${API_BASE}/signal?${params}`, {
+          signal: controller.signal,
+        });
+        const payload = await response.json();
+        const signal =
+          response.ok &&
+          typeof payload.zscore === "number" &&
+          Number.isFinite(payload.zscore) &&
+          ["short", "long", "hold"].includes(payload.direction)
+            ? (payload as TradingSignalSummary)
+            : null;
+
+        setPairSignals((prev) => ({ ...prev, [key]: signal }));
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setPairSignals((prev) => ({ ...prev, [key]: null }));
+        }
+      }
+    };
+
+    void Promise.allSettled(PAIRS.map(loadSignal)).finally(() => {
+      if (!controller.signal.aborted) setLoadingPairSignals(false);
+    });
+
+    return () => controller.abort();
+  }, [selectedPair, dateRange]);
 
   useEffect(() => {
     if (selectedPair) {
@@ -143,6 +203,7 @@ export default function CorrelationTradingPage() {
                 onSelect={handleSelect}
                 selectedPair={selectedPair}
                 pairSignals={pairSignals}
+                loadingPairSignals={loadingPairSignals}
                 dateRange={dateRange}
                 onError={(msg) => setToast({ message: msg, type: "error" })}
               />

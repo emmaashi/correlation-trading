@@ -9,13 +9,14 @@ import {
   SECTOR_COLORS,
   SIGNAL_WINDOW,
 } from "@/lib/correlationTypes";
-import SignalBadge from "./SignalBadge";
-import type { SignalLevel } from "@/lib/correlationTypes";
+import type { TradingSignalSummary } from "@/lib/correlationTypes";
+import TradingSignalBadge from "./TradingSignalBadge";
 
 interface PairSelectorProps {
   onSelect: (pair: PairInfo) => void;
   selectedPair: PairInfo | null;
-  pairSignals: Record<string, SignalLevel | null>;
+  pairSignals: Record<string, TradingSignalSummary | null>;
+  loadingPairSignals: boolean;
   dateRange: { start: string; end: string };
   onError: (message: string) => void;
 }
@@ -24,6 +25,7 @@ export default function PairSelector({
   onSelect,
   selectedPair,
   pairSignals,
+  loadingPairSignals,
   dateRange,
   onError,
 }: PairSelectorProps) {
@@ -210,10 +212,19 @@ export default function PairSelector({
                     {pair.sector}
                   </span>
                   {signal ? (
-                    <SignalBadge level={signal} size="sm" />
+                    <TradingSignalBadge
+                      direction={signal.direction}
+                      tickerA={pair.ticker_a}
+                      tickerB={pair.ticker_b}
+                    />
                   ) : hasSignalResult ? (
                     <span className="text-[10px] font-medium text-neutral-500">
                       Unavailable
+                    </span>
+                  ) : loadingPairSignals ? (
+                    <span className="inline-flex items-center gap-1.5 text-[10px] text-neutral-500">
+                      <span className="h-2.5 w-2.5 animate-spin rounded-full border border-neutral-700 border-t-neutral-400" />
+                      Loading
                     </span>
                   ) : null}
                 </div>

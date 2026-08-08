@@ -111,6 +111,14 @@ export interface RiskBreakdownResponse {
 export type SignalLevel = "normal" | "watch" | "signal";
 export type SignalDirection = "long" | "short" | "hold";
 
+export interface TradingSignalSummary {
+  ticker_a: string;
+  ticker_b: string;
+  zscore: number;
+  direction: SignalDirection;
+  window: number;
+}
+
 export const SIGNAL_WINDOW = 60;
 
 export const SECTOR_COLORS: Record<string, string> = {
