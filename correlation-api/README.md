@@ -34,6 +34,7 @@ The suite mocks market-data downloads and does not require network access.
 | GET | `/api/validate` | `ticker` | `{valid, ticker, name}` — used to validate custom ticker input |
 | GET | `/api/correlation` | `ticker_a`, `ticker_b`, `start`, `end`, `max_lag` | Lagged Pearson correlation of daily log returns across `[-max_lag, +max_lag]` |
 | GET | `/api/spread` | `ticker_a`, `ticker_b`, `start`, `end`, `spread_type`, `window` | Descriptive spread series plus current pair-model eligibility and residual signal diagnostics |
+| GET | `/api/signal` | `ticker_a`, `ticker_b`, `start`, `end`, `window` | Compact log-ratio z-score and Short, Long, or Hold direction for pair cards |
 | GET | `/api/risk/breakdown` | `ticker_a`, `ticker_b`, optional `end`, optional `start` override | Return-correlation breakdown signal with its own lookback window, current 60d correlation, baseline, reason, and `broken_since` |
 
 Dates are `YYYY-MM-DD`. `spread_type` is one of the values supported by `analysis/spread.py` (default `log_ratio`).

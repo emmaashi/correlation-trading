@@ -121,6 +121,16 @@ def _valid_pair_rows(df, ticker_a, ticker_b):
     return valid_df
 
 
+def _trading_signal_direction(zscore):
+    if zscore is None:
+        return None
+    if zscore >= 2:
+        return "short"
+    if zscore <= -2:
+        return "long"
+    return "hold"
+
+
 @app.route("/api/pairs", methods=["GET"])
 def get_pairs():
     return jsonify(PAIRS)
@@ -248,6 +258,50 @@ def get_spread():
             "data": data,
             "metrics": clean_metrics,
             "pair_model": pair_model,
+        })
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/signal", methods=["GET"])
+def get_signal():
+    ticker_a = request.args.get("ticker_a", "").upper()
+    ticker_b = request.args.get("ticker_b", "").upper()
+    start = request.args.get("start", "2023-01-01")
+    end = request.args.get("end", str(date.today()))
+
+    try:
+        _validate_pair(ticker_a, ticker_b)
+        _validate_date_range(start, end)
+        window = _parse_integer_arg(
+            "window", default=DEFAULT_SIGNAL_WINDOW, minimum=2
+        )
+        df = load_pair_data(ticker_a, ticker_b, start, end)
+        df = _valid_pair_rows(df, ticker_a, ticker_b)
+        if len(df) < window:
+            raise ValueError(
+                "At least "
+                f"{window} overlapping observations are required "
+                f"for window={window}; received {len(df)}"
+            )
+
+        _, metrics = calculate_spread_metrics(
+            df,
+            ticker_a,
+            ticker_b,
+            spread_type="log_ratio",
+            window=window,
+        )
+        zscore = _safe_float(metrics["current_zscore"])
+
+        return jsonify({
+            "ticker_a": ticker_a,
+            "ticker_b": ticker_b,
+            "zscore": zscore,
+            "direction": _trading_signal_direction(zscore),
+            "window": window,
         })
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
