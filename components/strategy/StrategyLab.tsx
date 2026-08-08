@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import ChartInfoTooltip from "@/components/correlation/ChartInfoTooltip";
+import Toast from "@/components/correlation/Toast";
 import { todayISO, yearsAgoISO } from "@/lib/dateUtils";
 import type {
   BasketSignal,
@@ -33,6 +34,7 @@ import {
 
 const DEFAULT_START = yearsAgoISO(5);
 const DEFAULT_END = todayISO();
+const TICKER_PATTERN = /^[A-Z0-9.-]{1,10}$/;
 
 function formatPercent(value: number | null | undefined, digits = 1) {
   return value == null ? "--" : `${(value * 100).toFixed(digits)}%`;
@@ -112,6 +114,8 @@ export default function StrategyLab() {
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [tickers, setTickers] = useState<string[]>([]);
   const [tickerInput, setTickerInput] = useState("");
+  const [validatingTicker, setValidatingTicker] = useState(false);
+  const [tickerToast, setTickerToast] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState({ start: DEFAULT_START, end: DEFAULT_END });
   const [scanning, setScanning] = useState(false);
   const [scan, setScan] = useState<StrategyScanResponse | null>(null);
@@ -186,12 +190,35 @@ export default function StrategyLab() {
     setSelectedCandidate(null);
   };
 
-  const addTicker = (event: FormEvent) => {
-    event.preventDefault();
+  const addTicker = async (event?: FormEvent) => {
+    event?.preventDefault();
     const ticker = tickerInput.trim().toUpperCase();
-    if (!ticker || tickers.includes(ticker) || tickers.length >= 8) return;
-    setTickers((current) => [...current, ticker]);
-    setTickerInput("");
+    if (!ticker || tickers.includes(ticker) || tickers.length >= 8 || validatingTicker) return;
+    if (!TICKER_PATTERN.test(ticker)) {
+      setTickerToast(`"${ticker}" is not a valid ticker symbol`);
+      return;
+    }
+
+    setValidatingTicker(true);
+    setTickerToast(null);
+    try {
+      const response = await fetch(`/api/validate?ticker=${encodeURIComponent(ticker)}`);
+      const payload = await response.json();
+      if (!response.ok || !payload.valid) {
+        setTickerToast(payload.error ?? `"${ticker}" is not a valid ticker symbol`);
+        return;
+      }
+
+      setTickers((current) => [...current, ticker]);
+      setTickerInput("");
+      setScan(null);
+      setSelectedCandidate(null);
+      setBacktest(null);
+    } catch {
+      setTickerToast(`Could not validate "${ticker}". Please try again.`);
+    } finally {
+      setValidatingTicker(false);
+    }
   };
 
   const runBacktest = async (candidate: BasketSignal) => {
@@ -226,6 +253,15 @@ export default function StrategyLab() {
 
   return (
     <div className="pt-8 sm:pt-10">
+      {tickerToast && (
+        <Toast
+          key={tickerToast}
+          message={tickerToast}
+          type="error"
+          duration={8000}
+          onClose={() => setTickerToast(null)}
+        />
+      )}
       <header className="mx-auto max-w-2xl text-center">
         <h1 className="text-3xl font-bold text-neutral-50 sm:text-4xl">Strategy Lab</h1>
         <p className="mt-2 text-sm leading-6 text-neutral-400 sm:text-base">
@@ -260,7 +296,12 @@ export default function StrategyLab() {
                   <button
                     type="button"
                     aria-label={`Remove ${ticker}`}
-                    onClick={() => setTickers((current) => current.filter((item) => item !== ticker))}
+                    onClick={() => {
+                      setTickers((current) => current.filter((item) => item !== ticker));
+                      setScan(null);
+                      setSelectedCandidate(null);
+                      setBacktest(null);
+                    }}
                     className="inline-flex h-5 w-5 items-center justify-center text-neutral-500 hover:text-neutral-100"
                   >
                     <X aria-hidden="true" className="h-3 w-3" />
@@ -269,12 +310,32 @@ export default function StrategyLab() {
               ))}
               {tickers.length < 8 && (
                 <form onSubmit={addTicker} className="flex min-w-[90px] flex-1 items-center">
-                  <Plus aria-hidden="true" className="h-3.5 w-3.5 text-neutral-600" />
+                  <button
+                    type="submit"
+                    aria-label="Add ticker"
+                    title="Add ticker"
+                    disabled={validatingTicker || !tickerInput.trim()}
+                    className="inline-flex h-6 w-6 shrink-0 items-center justify-center text-neutral-600 transition-colors hover:text-neutral-300 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {validatingTicker ? (
+                      <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin text-[#d4a020]" />
+                    ) : (
+                      <Plus aria-hidden="true" className="h-3.5 w-3.5" />
+                    )}
+                  </button>
                   <input
                     aria-label="Add ticker"
                     value={tickerInput}
                     onChange={(event) => setTickerInput(event.target.value.toUpperCase())}
-                    placeholder="Add ticker"
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        void addTicker();
+                      }
+                    }}
+                    disabled={validatingTicker}
+                    aria-busy={validatingTicker}
+                    placeholder={validatingTicker ? "Checking" : "Add ticker"}
                     className="min-w-0 flex-1 bg-transparent px-1.5 font-mono text-xs text-neutral-100 placeholder:text-neutral-700 focus:outline-none"
                   />
                 </form>

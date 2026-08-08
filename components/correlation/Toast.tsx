@@ -37,6 +37,8 @@ export default function Toast({ message, type, onClose, duration = 4000 }: Toast
           className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] max-w-md w-full px-4"
         >
           <div
+            role="alert"
+            aria-live="assertive"
             className="flex items-center gap-3 rounded-xl px-4 py-3 backdrop-blur-xl border"
             style={{ backgroundColor: bgColor, borderColor }}
           >
