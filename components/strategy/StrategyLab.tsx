@@ -90,7 +90,16 @@ const qualityStyles: Record<ModelQuality, string> = {
 };
 
 async function responseJson<T>(response: Response): Promise<T> {
-  const payload = await response.json();
+  let payload: any;
+  try {
+    payload = await response.json();
+  } catch {
+    throw new Error(
+      response.status >= 500
+        ? "Strategy API is unavailable. Please try again."
+        : "Strategy API returned an invalid response. Please try again."
+    );
+  }
   if (!response.ok) {
     throw new Error(payload.error?.message ?? payload.error ?? "Request failed");
   }
@@ -116,6 +125,7 @@ export default function StrategyLab() {
   const [tickerInput, setTickerInput] = useState("");
   const [validatingTicker, setValidatingTicker] = useState(false);
   const [tickerToast, setTickerToast] = useState<string | null>(null);
+  const [loadingUniverses, setLoadingUniverses] = useState(false);
   const [dateRange, setDateRange] = useState({ start: DEFAULT_START, end: DEFAULT_END });
   const [scanning, setScanning] = useState(false);
   const [scan, setScan] = useState<StrategyScanResponse | null>(null);
@@ -126,21 +136,32 @@ export default function StrategyLab() {
   const [initialScanStarted, setInitialScanStarted] = useState(false);
   const detailRef = useRef<HTMLDivElement | null>(null);
 
+  const loadUniverses = useCallback(async (signal?: AbortSignal) => {
+    setLoadingUniverses(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/strategy/universes", { signal });
+      const payload = await responseJson<StrategyUniversesResponse>(response);
+      const first = payload.groups[0];
+      if (!first) throw new Error("No peer groups are available.");
+
+      setUniverses(payload);
+      setSelectedGroupId(first.id);
+      setTickers(first.members.map((member) => member.ticker));
+    } catch (requestError: any) {
+      if (!signal?.aborted) {
+        setError(requestError.message ?? "Could not load peer groups");
+      }
+    } finally {
+      if (!signal?.aborted) setLoadingUniverses(false);
+    }
+  }, []);
+
   useEffect(() => {
     const controller = new AbortController();
-    void fetch("/api/strategy/universes", { signal: controller.signal })
-      .then((response) => responseJson<StrategyUniversesResponse>(response))
-      .then((payload) => {
-        setUniverses(payload);
-        const first = payload.groups[0];
-        setSelectedGroupId(first.id);
-        setTickers(first.members.map((member) => member.ticker));
-      })
-      .catch((requestError) => {
-        if (!controller.signal.aborted) setError(requestError.message);
-      });
+    void loadUniverses(controller.signal);
     return () => controller.abort();
-  }, []);
+  }, [loadUniverses]);
 
   const runScan = useCallback(
     async (symbols = tickers) => {
@@ -203,8 +224,8 @@ export default function StrategyLab() {
     setTickerToast(null);
     try {
       const response = await fetch(`/api/validate?ticker=${encodeURIComponent(ticker)}`);
-      const payload = await response.json();
-      if (!response.ok || !payload.valid) {
+      const payload = await responseJson<{ valid: boolean; error?: string }>(response);
+      if (!payload.valid) {
         setTickerToast(payload.error ?? `"${ticker}" is not a valid ticker symbol`);
         return;
       }
@@ -370,9 +391,20 @@ export default function StrategyLab() {
       </section>
 
       {error && (
-        <div className="mt-5 flex items-start gap-2 rounded-md border border-red-500/20 bg-red-500/[0.06] px-4 py-3 text-sm text-red-300">
+        <div className="mt-5 flex items-center gap-3 rounded-md border border-red-500/20 bg-red-500/[0.06] px-4 py-3 text-sm text-red-300">
           <AlertTriangle aria-hidden="true" className="mt-0.5 h-4 w-4 flex-shrink-0" />
-          {error}
+          <span className="min-w-0 flex-1">{error}</span>
+          {!universes && (
+            <button
+              type="button"
+              onClick={() => void loadUniverses()}
+              disabled={loadingUniverses}
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded border border-red-400/25 px-2.5 text-xs font-medium text-red-200 transition-colors hover:bg-red-400/10 disabled:cursor-wait disabled:opacity-60"
+            >
+              {loadingUniverses && <Loader2 aria-hidden="true" className="h-3.5 w-3.5 animate-spin" />}
+              {loadingUniverses ? "Retrying" : "Retry"}
+            </button>
+          )}
         </div>
       )}
 
