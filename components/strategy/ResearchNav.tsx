@@ -7,7 +7,7 @@ import { BarChart3, Network } from "lucide-react";
 
 const links = [
   { href: "/", label: "Pair Explorer", icon: Network },
-  { href: "/strategy-lab", label: "Strategy Lab", icon: BarChart3 },
+  { href: "/strategy-lab", label: "Strategy Lab", icon: BarChart3, badge: "Beta" },
 ];
 
 export default function ResearchNav({
@@ -21,7 +21,7 @@ export default function ResearchNav({
   return (
     <nav aria-label="Research tools" className="flex justify-center">
       <div className="inline-flex h-9 items-center rounded-lg border border-white/[0.09] bg-neutral-950/90 p-1 shadow-lg shadow-black/20 backdrop-blur-sm">
-        {links.map(({ href, label, icon: Icon }) => {
+        {links.map(({ href, label, icon: Icon, badge }) => {
           const active = href === "/" ? pathname === href : pathname.startsWith(href);
           return (
             <Link
@@ -51,6 +51,11 @@ export default function ResearchNav({
               )}
               <Icon aria-hidden="true" className="relative z-10 h-3.5 w-3.5" />
               <span className="relative z-10">{label}</span>
+              {badge && (
+                <span className="relative z-10 rounded border border-white/[0.09] bg-white/[0.07] px-1 py-px text-[8px] font-semibold uppercase leading-none text-neutral-400">
+                  {badge}
+                </span>
+              )}
             </Link>
           );
         })}
