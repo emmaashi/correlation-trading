@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowDownRight,
@@ -35,6 +36,13 @@ import {
 const DEFAULT_START = yearsAgoISO(5);
 const DEFAULT_END = todayISO();
 const TICKER_PATTERN = /^[A-Z0-9.-]{1,10}$/;
+
+export interface StrategyLabInitialState {
+  groupId?: string;
+  tickers?: string[];
+  start?: string;
+  end?: string;
+}
 
 function formatPercent(value: number | null | undefined, digits = 1) {
   return value == null ? "--" : `${(value * 100).toFixed(digits)}%`;
@@ -89,7 +97,7 @@ const qualityStyles: Record<ModelQuality, string> = {
   weak: "border-red-500/25 bg-red-500/10 text-red-400",
 };
 
-async function responseJson<T>(response: Response): Promise<T> {
+export async function responseJson<T>(response: Response): Promise<T> {
   let payload: any;
   try {
     payload = await response.json();
@@ -118,7 +126,23 @@ function Metric({ label, value, help }: { label: string; value: string; help: st
   );
 }
 
-export default function StrategyLab() {
+function candidateHref(
+  candidate: BasketSignal,
+  tickers: string[],
+  groupId: string,
+  dateRange: { start: string; end: string }
+) {
+  const query = new URLSearchParams({
+    peers: candidate.peers.join(","),
+    universe: tickers.join(","),
+    group: groupId,
+    start: dateRange.start,
+    end: dateRange.end,
+  });
+  return `/strategy-lab/${encodeURIComponent(candidate.target)}?${query.toString()}`;
+}
+
+export default function StrategyLab({ initialState }: { initialState?: StrategyLabInitialState }) {
   const [universes, setUniverses] = useState<StrategyUniversesResponse | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [tickers, setTickers] = useState<string[]>([]);
@@ -126,15 +150,14 @@ export default function StrategyLab() {
   const [validatingTicker, setValidatingTicker] = useState(false);
   const [tickerToast, setTickerToast] = useState<string | null>(null);
   const [loadingUniverses, setLoadingUniverses] = useState(false);
-  const [dateRange, setDateRange] = useState({ start: DEFAULT_START, end: DEFAULT_END });
+  const [dateRange, setDateRange] = useState({
+    start: initialState?.start ?? DEFAULT_START,
+    end: initialState?.end ?? DEFAULT_END,
+  });
   const [scanning, setScanning] = useState(false);
   const [scan, setScan] = useState<StrategyScanResponse | null>(null);
-  const [selectedCandidate, setSelectedCandidate] = useState<BasketSignal | null>(null);
-  const [backtest, setBacktest] = useState<StrategyBacktestResponse | null>(null);
-  const [backtesting, setBacktesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [initialScanStarted, setInitialScanStarted] = useState(false);
-  const detailRef = useRef<HTMLDivElement | null>(null);
 
   const loadUniverses = useCallback(async (signal?: AbortSignal) => {
     setLoadingUniverses(true);
@@ -142,12 +165,22 @@ export default function StrategyLab() {
     try {
       const response = await fetch("/api/strategy/universes", { signal });
       const payload = await responseJson<StrategyUniversesResponse>(response);
-      const first = payload.groups[0];
+      const requestedGroup = payload.groups.find((group) => group.id === initialState?.groupId);
+      const first = requestedGroup ?? payload.groups[0];
       if (!first) throw new Error("No peer groups are available.");
+
+      const restoredTickers = Array.from(
+        new Set((initialState?.tickers ?? []).map((ticker) => ticker.toUpperCase()))
+      ).filter((ticker) => TICKER_PATTERN.test(ticker));
+      const initialTickers =
+        restoredTickers.length >= payload.limits.minimum_tickers &&
+        restoredTickers.length <= payload.limits.maximum_tickers
+          ? restoredTickers
+          : first.members.map((member) => member.ticker);
 
       setUniverses(payload);
       setSelectedGroupId(first.id);
-      setTickers(first.members.map((member) => member.ticker));
+      setTickers(initialTickers);
     } catch (requestError: any) {
       if (!signal?.aborted) {
         setError(requestError.message ?? "Could not load peer groups");
@@ -155,7 +188,7 @@ export default function StrategyLab() {
     } finally {
       if (!signal?.aborted) setLoadingUniverses(false);
     }
-  }, []);
+  }, [initialState?.groupId, initialState?.tickers]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -168,8 +201,6 @@ export default function StrategyLab() {
       if (symbols.length < 4 || symbols.length > 8) return;
       setScanning(true);
       setError(null);
-      setSelectedCandidate(null);
-      setBacktest(null);
       try {
         const response = await fetch("/api/strategy/scan", {
           method: "POST",
@@ -207,8 +238,6 @@ export default function StrategyLab() {
     setSelectedGroupId(groupId);
     setTickers(group.members.map((member) => member.ticker));
     setScan(null);
-    setBacktest(null);
-    setSelectedCandidate(null);
   };
 
   const addTicker = async (event?: FormEvent) => {
@@ -233,42 +262,10 @@ export default function StrategyLab() {
       setTickers((current) => [...current, ticker]);
       setTickerInput("");
       setScan(null);
-      setSelectedCandidate(null);
-      setBacktest(null);
     } catch {
       setTickerToast(`Could not validate "${ticker}". Please try again.`);
     } finally {
       setValidatingTicker(false);
-    }
-  };
-
-  const runBacktest = async (candidate: BasketSignal) => {
-    setSelectedCandidate(candidate);
-    setBacktest(null);
-    setBacktesting(true);
-    setError(null);
-    requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-    try {
-      const response = await fetch("/api/strategy/backtest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          target: candidate.target,
-          peers: candidate.peers,
-          start: dateRange.start,
-          end: dateRange.end,
-          initial_capital: 100000,
-          gross_exposure: 1,
-          transaction_cost_bps: 5,
-          annual_borrow_rate: 0.03,
-          participation_rate: 0.01,
-        }),
-      });
-      setBacktest(await responseJson<StrategyBacktestResponse>(response));
-    } catch (requestError: any) {
-      setError(requestError.message ?? "Could not run the strategy backtest");
-    } finally {
-      setBacktesting(false);
     }
   };
 
@@ -320,8 +317,6 @@ export default function StrategyLab() {
                     onClick={() => {
                       setTickers((current) => current.filter((item) => item !== ticker));
                       setScan(null);
-                      setSelectedCandidate(null);
-                      setBacktest(null);
                     }}
                     className="inline-flex h-5 w-5 items-center justify-center text-neutral-500 hover:text-neutral-100"
                   >
@@ -432,11 +427,11 @@ export default function StrategyLab() {
               const presentation = actionPresentation(candidate.action, candidate.target);
               const Icon = presentation.icon;
               return (
-                <button
-                  type="button"
+                <Link
                   key={candidate.target}
-                  onClick={() => void runBacktest(candidate)}
-                  className={`grid w-full grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.035] sm:grid-cols-[34px_100px_minmax(180px,1fr)_100px_120px_24px] ${selectedCandidate?.target === candidate.target ? "bg-white/[0.045]" : ""}`}
+                  href={candidateHref(candidate, tickers, selectedGroupId, dateRange)}
+                  aria-label={`Open ${candidate.target} strategy analysis`}
+                  className="group grid w-full grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-white/[0.035] focus:outline-none focus-visible:bg-white/[0.045] sm:grid-cols-[34px_100px_minmax(180px,1fr)_100px_120px_24px]"
                 >
                   <span className="font-mono text-xs text-neutral-600">{String(index + 1).padStart(2, "0")}</span>
                   <span className="min-w-0">
@@ -456,8 +451,8 @@ export default function StrategyLab() {
                   <span className={`hidden justify-self-end rounded border px-2 py-0.5 text-[10px] font-medium capitalize sm:inline-flex ${qualityStyles[candidate.model_quality]}`}>
                     {candidate.model_quality}
                   </span>
-                  <ArrowRight aria-hidden="true" className="h-4 w-4 text-neutral-600" />
-                </button>
+                  <ArrowRight aria-hidden="true" className="h-4 w-4 text-neutral-600 transition-transform group-hover:translate-x-0.5 group-hover:text-neutral-300" />
+                </Link>
               );
             })}
           </div>
@@ -465,17 +460,6 @@ export default function StrategyLab() {
           <div className="flex h-52 items-center justify-center text-sm text-neutral-600">No scan has been run yet.</div>
         )}
       </section>
-
-      <div ref={detailRef} className="scroll-mt-6">
-        {selectedCandidate && backtesting && (
-          <div className="mt-10 flex h-64 items-center justify-center gap-2 border-y border-white/[0.08] text-sm text-neutral-500">
-            <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
-            Running three walk-forward simulations for {selectedCandidate.target}
-          </div>
-        )}
-
-        {backtest && <BacktestDetail result={backtest} />}
-      </div>
 
       <div className="mt-8 flex items-start gap-2 border-t border-white/[0.08] pt-4 text-[11px] leading-5 text-neutral-600">
         <AlertTriangle aria-hidden="true" className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" />
@@ -487,13 +471,19 @@ export default function StrategyLab() {
   );
 }
 
-function BacktestDetail({ result }: { result: StrategyBacktestResponse }) {
+export function BacktestDetail({
+  result,
+  className = "mt-10",
+}: {
+  result: StrategyBacktestResponse;
+  className?: string;
+}) {
   const signal = result.current_signal;
   const presentation = actionPresentation(signal.action, result.target);
   const ActionIcon = presentation.icon;
 
   return (
-    <div className="mt-10 space-y-6">
+    <div className={`${className} space-y-6`}>
       <section className="rounded-lg border border-white/[0.10] bg-white/[0.025]">
         <div className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(300px,0.75fr)]">
           <div>
