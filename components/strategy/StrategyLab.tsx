@@ -2,13 +2,19 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import * as Popover from "@radix-ui/react-popover";
+import { format, parseISO } from "date-fns";
+import { DayPicker } from "react-day-picker";
 import {
   AlertTriangle,
   ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
+  CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Loader2,
   Minus,
   Plus,
@@ -122,6 +128,89 @@ function Metric({ label, value, help }: { label: string; value: string; help: st
         <ChartInfoTooltip label={label}>{help}</ChartInfoTooltip>
       </div>
       <p className="mt-1 truncate font-mono text-lg font-semibold text-neutral-100">{value}</p>
+    </div>
+  );
+}
+
+function DatePickerField({
+  label,
+  value,
+  min,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  min?: string;
+  max?: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedDate = parseISO(value);
+  const minimumDate = min ? parseISO(min) : undefined;
+  const maximumDate = max ? parseISO(max) : undefined;
+
+  return (
+    <div className="block">
+      <span className="mb-1 block text-[10px] uppercase text-neutral-600">{label}</span>
+      <Popover.Root open={open} onOpenChange={setOpen}>
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            aria-label={`Choose ${label.toLowerCase()} date, current ${format(selectedDate, "MMMM d, yyyy")}`}
+            className="inline-flex h-9 w-[154px] items-center justify-between rounded-md border border-white/[0.10] bg-neutral-950 px-3 text-xs text-neutral-300 outline-none transition-colors hover:border-white/[0.18] focus-visible:border-[#c28b00]/60 focus-visible:ring-1 focus-visible:ring-[#c28b00]/25 data-[state=open]:border-[#c28b00]/60"
+          >
+            <span className="font-mono">{format(selectedDate, "MM/dd/yyyy")}</span>
+            <CalendarDays aria-hidden="true" className="h-4 w-4 text-neutral-600" />
+          </button>
+        </Popover.Trigger>
+        <Popover.Portal>
+          <Popover.Content
+            align="start"
+            sideOffset={7}
+            className="z-50 rounded-md border border-white/[0.12] bg-neutral-950 p-3 text-neutral-200 shadow-2xl shadow-black/70 outline-none"
+          >
+            <DayPicker
+              mode="single"
+              selected={selectedDate}
+              defaultMonth={selectedDate}
+              fromDate={minimumDate}
+              toDate={maximumDate}
+              showOutsideDays
+              onSelect={(date) => {
+                if (!date) return;
+                onChange(format(date, "yyyy-MM-dd"));
+                setOpen(false);
+              }}
+              classNames={{
+                months: "flex",
+                month: "space-y-3",
+                caption: "relative flex h-8 items-center justify-center",
+                caption_label: "text-xs font-semibold text-neutral-200",
+                nav: "flex items-center gap-1",
+                nav_button: "inline-flex h-7 w-7 items-center justify-center rounded text-neutral-500 transition-colors hover:bg-white/[0.07] hover:text-neutral-100 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#c28b00]/70 disabled:opacity-25",
+                nav_button_previous: "absolute left-0",
+                nav_button_next: "absolute right-0",
+                table: "w-full border-collapse",
+                head_row: "flex",
+                head_cell: "w-8 text-center text-[9px] font-medium uppercase text-neutral-600",
+                row: "mt-1 flex w-full",
+                cell: "relative h-8 w-8 p-0 text-center text-xs",
+                day: "inline-flex h-8 w-8 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-white/[0.08] hover:text-neutral-50 focus:outline-none focus-visible:ring-1 focus-visible:ring-[#c28b00]/70",
+                day_selected: "bg-[#c28b00] font-semibold text-black hover:bg-[#d4a020] hover:text-black",
+                day_today: "border border-[#c28b00]/45 text-neutral-100",
+                day_outside: "text-neutral-800",
+                day_disabled: "cursor-not-allowed text-neutral-800 opacity-40 hover:bg-transparent hover:text-neutral-800",
+                day_hidden: "invisible",
+              }}
+              components={{
+                IconLeft: () => <ChevronLeft aria-hidden="true" className="h-4 w-4" />,
+                IconRight: () => <ChevronRight aria-hidden="true" className="h-4 w-4" />,
+              }}
+            />
+          </Popover.Content>
+        </Popover.Portal>
+      </Popover.Root>
     </div>
   );
 }
@@ -371,14 +460,19 @@ export default function StrategyLab({ initialState }: { initialState?: StrategyL
         </div>
 
         <div className="mt-3 flex flex-wrap items-end gap-3">
-          <label>
-            <span className="mb-1 block text-[10px] uppercase text-neutral-600">Start</span>
-            <input type="date" value={dateRange.start} onChange={(event) => setDateRange((current) => ({ ...current, start: event.target.value }))} className="h-8 rounded-md border border-white/[0.08] bg-neutral-950 px-2 text-xs text-neutral-400 outline-none focus:border-[#c28b00]/50" />
-          </label>
-          <label>
-            <span className="mb-1 block text-[10px] uppercase text-neutral-600">End</span>
-            <input type="date" value={dateRange.end} onChange={(event) => setDateRange((current) => ({ ...current, end: event.target.value }))} className="h-8 rounded-md border border-white/[0.08] bg-neutral-950 px-2 text-xs text-neutral-400 outline-none focus:border-[#c28b00]/50" />
-          </label>
+          <DatePickerField
+            label="Start"
+            value={dateRange.start}
+            max={dateRange.end}
+            onChange={(start) => setDateRange((current) => ({ ...current, start }))}
+          />
+          <DatePickerField
+            label="End"
+            value={dateRange.end}
+            min={dateRange.start}
+            max={DEFAULT_END}
+            onChange={(end) => setDateRange((current) => ({ ...current, end }))}
+          />
           <p className="max-w-xl pb-1 text-[11px] leading-4 text-neutral-600">
             Scanner ranking uses a fixed 252-session model. Detailed results compare 126, 252, and 504-session formation windows without choosing the winner.
           </p>
