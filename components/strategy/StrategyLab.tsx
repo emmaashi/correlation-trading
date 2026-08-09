@@ -24,6 +24,7 @@ import {
 
 import ChartInfoTooltip from "@/components/correlation/ChartInfoTooltip";
 import Toast from "@/components/correlation/Toast";
+import StrategyLabSkeleton from "@/components/strategy/StrategyLabSkeleton";
 import { todayISO, yearsAgoISO } from "@/lib/dateUtils";
 import type {
   BasketSignal,
@@ -238,7 +239,7 @@ export default function StrategyLab({ initialState }: { initialState?: StrategyL
   const [tickerInput, setTickerInput] = useState("");
   const [validatingTicker, setValidatingTicker] = useState(false);
   const [tickerToast, setTickerToast] = useState<string | null>(null);
-  const [loadingUniverses, setLoadingUniverses] = useState(false);
+  const [loadingUniverses, setLoadingUniverses] = useState(true);
   const [dateRange, setDateRange] = useState({
     start: initialState?.start ?? DEFAULT_START,
     end: initialState?.end ?? DEFAULT_END,
@@ -357,6 +358,14 @@ export default function StrategyLab({ initialState }: { initialState?: StrategyL
       setValidatingTicker(false);
     }
   };
+
+  const showInitialSkeleton =
+    loadingUniverses ||
+    Boolean(universes && !error && !scan && (!initialScanStarted || scanning));
+
+  if (showInitialSkeleton) {
+    return <StrategyLabSkeleton />;
+  }
 
   return (
     <div className="pt-8 sm:pt-10">
