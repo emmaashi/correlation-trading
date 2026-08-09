@@ -10,7 +10,11 @@ const links = [
   { href: "/strategy-lab", label: "Strategy Lab", icon: BarChart3 },
 ];
 
-export default function ResearchNav() {
+export default function ResearchNav({
+  onNavigateStart,
+}: {
+  onNavigateStart?: (href: string) => void;
+}) {
   const pathname = usePathname();
   const reduceMotion = useReducedMotion();
 
@@ -24,6 +28,18 @@ export default function ResearchNav() {
               key={href}
               href={href}
               aria-current={active ? "page" : undefined}
+              onClick={(event) => {
+                if (
+                  active ||
+                  event.metaKey ||
+                  event.ctrlKey ||
+                  event.shiftKey ||
+                  event.altKey
+                ) {
+                  return;
+                }
+                onNavigateStart?.(href);
+              }}
               className={`relative inline-flex h-7 items-center gap-2 rounded-md px-3 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-[#c28b00]/70 sm:px-4 ${active ? "text-neutral-100" : "text-neutral-500 hover:text-neutral-200"}`}
             >
               {active && (

@@ -1,5 +1,5 @@
 function SkeletonBlock({ className }: { className: string }) {
-  return <div className={`rounded bg-white/[0.065] ${className}`} />;
+  return <div className={`skeleton-shimmer rounded ${className}`} />;
 }
 
 export default function StrategyLabSkeleton() {
@@ -8,7 +8,7 @@ export default function StrategyLabSkeleton() {
       role="status"
       aria-label="Loading Strategy Lab"
       aria-busy="true"
-      className="pointer-events-none pt-8 motion-safe:animate-pulse sm:pt-10"
+      className="pointer-events-none pt-8 sm:pt-10"
     >
       <span className="sr-only">Loading Strategy Lab</span>
 
