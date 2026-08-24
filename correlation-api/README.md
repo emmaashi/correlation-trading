@@ -16,6 +16,16 @@ Defaults to **port 5050**. Override with `CORRELATION_API_PORT=5060 python app.p
 
 The Next dev server (`npm run dev` in the repo root) rewrites browser requests from `/api/*` to `http://localhost:5050/api/*`, so the app works once both processes are running.
 
+## Test
+
+From `correlation-api`, run the same command used in CI:
+
+```bash
+python -m unittest discover -v
+```
+
+The suite mocks market-data downloads and does not require network access.
+
 ## Endpoints
 
 | Method | Path | Query | Returns |
