@@ -6,6 +6,7 @@ const apiBase =
     : "http://localhost:5050");
 
 const nextConfig = {
+  agentRules: false,
   async rewrites() {
     return [
       {
