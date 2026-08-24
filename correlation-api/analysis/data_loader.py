@@ -5,13 +5,60 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-CACHE_VERSION = "v3"
+CACHE_VERSION = "v4"
 DOWNLOAD_LOCK = threading.Lock()
+
+REQUIRED_DATA_COLUMNS = (
+    "Date",
+    "Close",
+    "RawClose",
+    "Dividends",
+    "StockSplits",
+    "Ticker",
+)
+REQUIRED_NUMERIC_COLUMNS = (
+    "Close",
+    "RawClose",
+    "Dividends",
+    "StockSplits",
+)
+OPTIONAL_ACTION_COLUMNS = ("CapitalGains",)
+DOWNLOAD_FIELD_MAP = {
+    "Adj Close": "Close",
+    "Close": "RawClose",
+    "Dividends": "Dividends",
+    "Stock Splits": "StockSplits",
+}
+
+
+def _parse_requested_date(value, label):
+    try:
+        if isinstance(value, str):
+            parsed = pd.to_datetime(value, format="%Y-%m-%d", errors="raise")
+        else:
+            parsed = pd.to_datetime(value, errors="raise")
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{label} must be a valid YYYY-MM-DD date") from exc
+
+    if not isinstance(parsed, pd.Timestamp) or pd.isna(parsed):
+        raise ValueError(f"{label} must be a single valid date")
+    if parsed.tzinfo is not None:
+        parsed = parsed.tz_localize(None)
+    return parsed.normalize()
+
+
+def _validate_date_range(start_date, end_date):
+    requested_start = _parse_requested_date(start_date, "start_date")
+    requested_end = _parse_requested_date(end_date, "end_date")
+    if requested_start > requested_end:
+        raise ValueError("start_date must be on or before end_date")
+    return requested_start, requested_end
 
 
 def _exclusive_download_end(end_date):
     """Convert the API's inclusive end date to yfinance's exclusive end date."""
-    return (pd.to_datetime(end_date) + pd.Timedelta(days=1)).date().isoformat()
+    requested_end = _parse_requested_date(end_date, "end_date")
+    return (requested_end + pd.Timedelta(days=1)).date().isoformat()
 
 
 def get_data_path(ticker, start_date, end_date, folder="data/raw"):
@@ -27,28 +74,61 @@ def get_data_path(ticker, start_date, end_date, folder="data/raw"):
     Returns:
         str: Full file path for the cached CSV file.
     """
-    filename = f"{ticker}_{start_date}_to_{end_date}_{CACHE_VERSION}_raw.csv"
+    requested_start, requested_end = _validate_date_range(start_date, end_date)
+    start = requested_start.date().isoformat()
+    end = requested_end.date().isoformat()
+    filename = f"{ticker}_{start}_to_{end}_{CACHE_VERSION}_raw.csv"
     return os.path.join(folder, filename)
 
 
-def _cache_is_valid(df, ticker, start_date, end_date):
-    required_columns = {"Date", "Close", "Ticker"}
-    if df.empty or not required_columns.issubset(df.columns):
-        return False
+def _validated_market_data(df, ticker, start_date, end_date):
+    """Return a type-normalized market-data frame or raise for invalid data."""
+    requested_start, requested_end = _validate_date_range(start_date, end_date)
+    if not isinstance(df, pd.DataFrame):
+        raise ValueError("market data must be a DataFrame")
+    missing_columns = set(REQUIRED_DATA_COLUMNS).difference(df.columns)
+    if df.empty:
+        raise ValueError("market data is empty")
+    if missing_columns:
+        missing = ", ".join(sorted(missing_columns))
+        raise ValueError(f"market data is missing required columns: {missing}")
 
-    dates = pd.to_datetime(df["Date"], errors="coerce")
-    closes = pd.to_numeric(df["Close"], errors="coerce")
-    tickers = df["Ticker"].astype(str).str.upper()
+    output_columns = list(REQUIRED_DATA_COLUMNS)
+    output_columns.extend(
+        column for column in OPTIONAL_ACTION_COLUMNS if column in df.columns
+    )
+    validated = df.loc[:, output_columns].copy()
 
-    if dates.isna().any() or dates.duplicated().any() or not dates.is_monotonic_increasing:
-        return False
-    if closes.isna().any() or not np.isfinite(closes).all() or (closes <= 0).any():
-        return False
-    if not (tickers == ticker.upper()).all():
-        return False
+    dates = pd.to_datetime(validated["Date"], errors="coerce")
+    if dates.isna().any():
+        raise ValueError("Date contains invalid or missing values")
+    dates = dates.dt.tz_localize(None).dt.normalize()
+    if dates.duplicated().any() or not dates.is_monotonic_increasing:
+        raise ValueError("Date values must be unique and sorted in ascending order")
+    validated["Date"] = dates
 
-    requested_start = pd.to_datetime(start_date)
-    requested_end = pd.to_datetime(end_date)
+    numeric_columns = list(REQUIRED_NUMERIC_COLUMNS)
+    numeric_columns.extend(
+        column for column in OPTIONAL_ACTION_COLUMNS if column in validated.columns
+    )
+    for column in numeric_columns:
+        values = pd.to_numeric(validated[column], errors="coerce")
+        if values.isna().any() or not np.isfinite(values).all():
+            raise ValueError(f"{column} contains invalid or missing numeric values")
+        validated[column] = values.astype(float)
+
+    for column in ("Close", "RawClose"):
+        if (validated[column] <= 0).any():
+            raise ValueError(f"{column} must contain strictly positive prices")
+    for column in ("Dividends", "StockSplits", *OPTIONAL_ACTION_COLUMNS):
+        if column in validated.columns and (validated[column] < 0).any():
+            raise ValueError(f"{column} must contain non-negative action values")
+
+    tickers = validated["Ticker"].astype("string").str.strip().str.upper()
+    if tickers.isna().any() or not (tickers == ticker.upper()).all():
+        raise ValueError(f"Ticker values must all match {ticker.upper()}")
+    validated["Ticker"] = ticker.upper()
+
     first_date = dates.min()
     last_date = dates.max()
 
@@ -60,28 +140,77 @@ def _cache_is_valid(df, ticker, start_date, end_date):
         requested_days >= 365 * 7 and actual_days / requested_days >= 0.75
     )
 
-    if first_date > requested_start + pd.Timedelta(days=7) and not long_range_with_later_listing:
-        return False
+    if (
+        first_date > requested_start + pd.Timedelta(days=7)
+        and not long_range_with_later_listing
+    ):
+        raise ValueError("market data starts too late for the requested date range")
     if last_date < requested_end - pd.Timedelta(days=7):
-        return False
+        raise ValueError("market data ends too early for the requested date range")
 
+    return validated
+
+
+def _cache_is_valid(df, ticker, start_date, end_date):
+    try:
+        _validated_market_data(df, ticker, start_date, end_date)
+    except (AttributeError, TypeError, ValueError):
+        return False
     return True
 
 
-def _normalize_downloaded_data(df, ticker):
+def _download_field(df, field, ticker, required=True):
+    """Select one field from a single-ticker yfinance download."""
     if isinstance(df.columns, pd.MultiIndex):
-        df.columns = df.columns.get_level_values(0)
+        matching_levels = [
+            level
+            for level in range(df.columns.nlevels)
+            if field in df.columns.get_level_values(level)
+        ]
+        if not matching_levels:
+            selected = None
+        elif len(matching_levels) > 1:
+            raise ValueError(
+                f"Downloaded data for {ticker} has an ambiguous {field!r} field"
+            )
+        else:
+            selected = df.xs(field, axis="columns", level=matching_levels[0])
+    else:
+        selected = df[field] if field in df.columns else None
 
-    df = df.reset_index()
-    if "Date" not in df.columns:
-        df = df.rename(columns={df.columns[0]: "Date"})
+    if selected is None:
+        if required:
+            raise ValueError(
+                f"Downloaded data for {ticker} is missing required {field!r} data"
+            )
+        return None
 
-    df = df.loc[:, ~df.columns.duplicated()]
-    close_col = df["Close"]
-    if isinstance(close_col, pd.DataFrame):
-        close_col = close_col.iloc[:, 0]
+    if isinstance(selected, pd.DataFrame):
+        if selected.shape[1] != 1:
+            raise ValueError(
+                f"Downloaded data for {ticker} contains multiple {field!r} series"
+            )
+        selected = selected.iloc[:, 0]
 
-    return pd.DataFrame({"Date": df["Date"], "Close": close_col, "Ticker": ticker})
+    return selected.reset_index(drop=True)
+
+
+def _normalize_downloaded_data(df, ticker):
+    if not isinstance(df, pd.DataFrame) or df.empty:
+        raise ValueError(f"Downloaded data for {ticker} is empty")
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise ValueError(f"Downloaded data for {ticker} does not have a date index")
+
+    normalized = {"Date": pd.Series(df.index).reset_index(drop=True)}
+    for download_field, output_field in DOWNLOAD_FIELD_MAP.items():
+        normalized[output_field] = _download_field(df, download_field, ticker)
+
+    capital_gains = _download_field(df, "Capital Gains", ticker, required=False)
+    if capital_gains is not None:
+        normalized["CapitalGains"] = capital_gains
+    normalized["Ticker"] = ticker
+
+    return pd.DataFrame(normalized)
 
 
 def _write_cache_atomic(df, path):
@@ -106,37 +235,41 @@ def get_stock_data(ticker, start_date, end_date, cache=True):
         cache (bool): If True, load from or save to local CSV cache.
 
     Returns:
-        pd.DataFrame: DataFrame with columns ['Date', 'Close', 'Ticker'].
+        pd.DataFrame: Adjusted research close, raw close, and action data.
     """
+    requested_start, requested_end = _validate_date_range(start_date, end_date)
+    start = requested_start.date().isoformat()
+    end = requested_end.date().isoformat()
     path = get_data_path(ticker, start_date, end_date)
     if cache and os.path.exists(path):
-        cached = pd.read_csv(path, parse_dates=["Date"])
-        cached = cached.loc[:, ~cached.columns.duplicated()]
-        if isinstance(cached["Close"], pd.DataFrame):
-            cached["Close"] = cached["Close"].iloc[:, 0]
-        cached = cached[["Date", "Close", "Ticker"]]
-        if _cache_is_valid(cached, ticker, start_date, end_date):
-            return cached
+        try:
+            cached = pd.read_csv(path)
+            return _validated_market_data(cached, ticker, start, end)
+        except (OSError, TypeError, UnicodeError, ValueError, pd.errors.ParserError):
+            pass
 
     # yfinance uses shared module-level state during downloads. Concurrent
     # single-ticker downloads can leak one ticker's data into another result.
     with DOWNLOAD_LOCK:
         downloaded = yf.download(
             ticker,
-            start=start_date,
-            end=_exclusive_download_end(end_date),
+            start=start,
+            end=_exclusive_download_end(end),
             progress=False,
             auto_adjust=False,
+            actions=True,
             threads=False,
         ).copy()
 
     df = _normalize_downloaded_data(downloaded, ticker)
-    if not _cache_is_valid(df, ticker, start_date, end_date):
-        raise ValueError(f"Downloaded data for {ticker} does not cover the requested date range")
-    
+    try:
+        df = _validated_market_data(df, ticker, start, end)
+    except ValueError as exc:
+        raise ValueError(f"Invalid downloaded data for {ticker}: {exc}") from exc
+
     if cache:
         _write_cache_atomic(df, path)
-    
+
     return df
 
 
@@ -160,10 +293,14 @@ def load_pair_data(ticker_a, ticker_b, start_date, end_date, cache=True):
     print(f"Loading data for {ticker_b}")
     df_b = get_stock_data(ticker_b, start_date, end_date, cache)
 
-    # Rename columns before merging to ensure consistent naming
-    df_a = df_a.rename(columns={'Close': f'Close_{ticker_a}', 'Ticker': f'Ticker_{ticker_a}'})
-    df_b = df_b.rename(columns={'Close': f'Close_{ticker_b}', 'Ticker': f'Ticker_{ticker_b}'})
-    
+    # Retain each ticker's raw prices and actions without merge suffix ambiguity.
+    df_a = df_a.rename(
+        columns={column: f"{column}_{ticker_a}" for column in df_a if column != "Date"}
+    )
+    df_b = df_b.rename(
+        columns={column: f"{column}_{ticker_b}" for column in df_b if column != "Date"}
+    )
+
     # Merge on Date
     merged = pd.merge(df_a, df_b, on="Date")
     return merged
