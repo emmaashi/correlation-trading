@@ -18,6 +18,9 @@ The frontend calls `/api/*`. `next.config.mjs` rewrites those requests to the Fl
 
 ## Running Locally
 
+Use Node.js 20.20.2 for the frontend. Version managers such as `nvm`, `fnm`,
+and `asdf` will pick up the checked-in runtime version files automatically.
+
 Run the frontend and API in two terminals.
 
 ### Terminal 1: Frontend
