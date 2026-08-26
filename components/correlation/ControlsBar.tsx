@@ -6,9 +6,7 @@ import { todayISO, yearsAgoISO } from "@/lib/dateUtils";
 interface ControlsBarProps {
   pair: PairInfo;
   dateRange: { start: string; end: string };
-  spreadType: string;
   onDateRangeChange: (range: { start: string; end: string }) => void;
-  onSpreadTypeChange: (type: string) => void;
   onBack: () => void;
   loading: boolean;
 }
@@ -21,18 +19,10 @@ const PRESETS = [
   { label: "Max", years: 10 },
 ];
 
-const SPREAD_TYPES = [
-  { value: "log_ratio", label: "Log Ratio" },
-  { value: "ratio", label: "Ratio" },
-  { value: "difference", label: "Difference" },
-];
-
 export default function ControlsBar({
   pair,
   dateRange,
-  spreadType,
   onDateRangeChange,
-  onSpreadTypeChange,
   onBack,
   loading,
 }: ControlsBarProps) {
@@ -93,23 +83,6 @@ export default function ControlsBar({
                 }`}
               >
                 {p.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Spread type */}
-          <div className="flex items-center gap-1 bg-white/[0.04] rounded-lg p-0.5">
-            {SPREAD_TYPES.map((st) => (
-              <button
-                key={st.value}
-                onClick={() => onSpreadTypeChange(st.value)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                  spreadType === st.value
-                    ? "bg-white/[0.12] text-neutral-50"
-                    : "text-neutral-400 hover:text-neutral-200"
-                }`}
-              >
-                {st.label}
               </button>
             ))}
           </div>

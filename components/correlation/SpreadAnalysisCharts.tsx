@@ -316,16 +316,16 @@ export default function SpreadAnalysisCharts({
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
         <div className="mb-1 flex items-start gap-1.5">
           <h3 className="text-sm font-semibold text-neutral-300">
-            Spread Z-Score
+            Log-Ratio Spread Z-Score
           </h3>
-          <ChartInfoTooltip label="Spread Z-Score">
-            Shows how unusual the spread is versus its 60-day average. Above +2
-            can favor short {tickerA} and long {tickerB}. Below -2 can favor the
-            reverse. A move back toward 0 is the mean-reversion thesis.
+          <ChartInfoTooltip label="Log-Ratio Spread Z-Score">
+            Shows how unusual the log-price ratio is versus its 60-day average.
+            Above +2 produces Short {tickerA} / Long {tickerB}; below -2 produces
+            the reverse. A move back toward 0 is the mean-reversion thesis.
           </ChartInfoTooltip>
         </div>
         <p className="text-xs text-neutral-500 mb-4">
-          Standardized spread — values beyond ±2 indicate potential trading signals
+          The 60-day log-ratio deviation used for Short, Long, and Hold signals
         </p>
         <div className="h-[280px]">
           <ResponsiveContainer width="100%" height="100%">
