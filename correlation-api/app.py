@@ -1,5 +1,6 @@
 import os
 import math
+import re
 from datetime import date, datetime, timedelta
 from flask import Flask, request, jsonify
 from flask_cors import CORS
@@ -7,18 +8,22 @@ import pandas as pd
 
 import yfinance as yf
 
-from analysis.data_loader import load_pair_data
+from analysis.data_loader import load_pair_data, load_universe_data
 from analysis.correlation import compute_lagged_correlation
 from analysis.pair_model import validate_pair_model
 from analysis.spread import calculate_spread_metrics
 from analysis.risk import detect_correlation_breakdown
 from analysis.universes import serialized_peer_groups
+from analysis.peer_basket import DEFAULT_FORMATION_WINDOW, scan_peer_universe
 
 app = Flask(__name__)
 CORS(app)
 
 RISK_LOOKBACK_DAYS = 540
 DEFAULT_SIGNAL_WINDOW = 60
+MIN_STRATEGY_OBSERVATIONS = 504
+MAX_STRATEGY_YEARS = 10
+STRATEGY_TICKER_PATTERN = re.compile(r"^[A-Z0-9.-]{1,10}$")
 
 PAIRS = [
     {"ticker_a": "MSFT",  "ticker_b": "GOOGL", "name_a": "Microsoft",         "name_b": "Google",            "sector": "Technology"},
@@ -99,6 +104,49 @@ def _validate_pair(ticker_a, ticker_b):
         raise ValueError("ticker_a and ticker_b must be different")
 
 
+def _strategy_payload():
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict):
+        raise ValueError("Request body must be a JSON object")
+    return payload
+
+
+def _strategy_tickers(payload):
+    raw_tickers = payload.get("tickers")
+    if not isinstance(raw_tickers, list):
+        raise ValueError("tickers must be an array")
+    tickers = []
+    for raw_ticker in raw_tickers:
+        if not isinstance(raw_ticker, str):
+            raise ValueError("ticker symbols must be strings")
+        ticker = str(raw_ticker).strip().upper()
+        if not STRATEGY_TICKER_PATTERN.fullmatch(ticker):
+            raise ValueError(f"Invalid ticker symbol: {ticker or '(empty)'}")
+        if ticker not in tickers:
+            tickers.append(ticker)
+    if not 4 <= len(tickers) <= 8:
+        raise ValueError("tickers must contain between 4 and 8 unique symbols")
+    return tickers
+
+
+def _strategy_dates(payload):
+    today = date.today()
+    default_start = today - timedelta(days=365 * 5 + 2)
+    start = payload.get("start", default_start.isoformat())
+    end = payload.get("end", today.isoformat())
+    parsed_start = _parse_iso_date(start, "start")
+    parsed_end = _parse_iso_date(end, "end")
+    if parsed_start >= parsed_end:
+        raise ValueError("start must be before end")
+    if (parsed_end - parsed_start).days > 365 * MAX_STRATEGY_YEARS + 3:
+        raise ValueError(f"Strategy date range cannot exceed {MAX_STRATEGY_YEARS} years")
+    return start, end
+
+
+def _strategy_error(message, code="invalid_request", status=400):
+    return jsonify({"error": {"code": code, "message": str(message)}}), status
+
+
 def _valid_pair_rows(df, ticker_a, ticker_b):
     column_a = f"Close_{ticker_a}"
     column_b = f"Close_{ticker_b}"
@@ -140,6 +188,52 @@ def get_pairs():
 @app.route("/api/strategy/universes", methods=["GET"])
 def get_strategy_universes():
     return jsonify(serialized_peer_groups())
+
+
+@app.route("/api/strategy/scan", methods=["POST"])
+def scan_strategy_universe():
+    try:
+        payload = _strategy_payload()
+        tickers = _strategy_tickers(payload)
+        start, end = _strategy_dates(payload)
+        frame = load_universe_data(tickers, start, end)
+        if len(frame) < MIN_STRATEGY_OBSERVATIONS:
+            raise ValueError(
+                f"At least {MIN_STRATEGY_OBSERVATIONS} overlapping sessions are "
+                f"required; received {len(frame)}"
+            )
+
+        candidates = scan_peer_universe(
+            frame,
+            tickers,
+            formation_window=DEFAULT_FORMATION_WINDOW,
+        )
+        first_date = pd.Timestamp(frame["Date"].iloc[0]).date().isoformat()
+        last_date = pd.Timestamp(frame["Date"].iloc[-1]).date().isoformat()
+        return jsonify({
+            "strategy_version": "peer_residual_v1",
+            "tickers": tickers,
+            "as_of": last_date,
+            "candidates": candidates,
+            "parameters": {
+                "formation_window": DEFAULT_FORMATION_WINDOW,
+                "rebalance_sessions": 21,
+                "entry_z": 2.0,
+                "exit_z": 0.5,
+            },
+            "data_quality": {
+                "observation_count": len(frame),
+                "first_date": first_date,
+                "latest_date": last_date,
+                "warnings": [
+                    "Peer membership uses today's editable universe and may contain survivorship bias"
+                ],
+            },
+        })
+    except ValueError as exc:
+        return _strategy_error(exc)
+    except Exception as exc:
+        return _strategy_error(exc, code="strategy_scan_failed", status=500)
 
 
 @app.route("/api/validate", methods=["GET"])
