@@ -370,11 +370,7 @@ export default function StrategyLab({ initialState }: { initialState?: StrategyL
     }
   };
 
-  const showInitialSkeleton =
-    loadingUniverses ||
-    Boolean(universes && !error && !scan && (!initialScanStarted || scanning));
-
-  if (showInitialSkeleton) {
+  if (loadingUniverses) {
     return <StrategyLabSkeleton />;
   }
 
@@ -536,7 +532,7 @@ export default function StrategyLab({ initialState }: { initialState?: StrategyL
           </p>
         </div>
 
-        {scanning && !scan ? (
+        {!scan && (!initialScanStarted || scanning) ? (
           <div className="flex h-52 items-center justify-center gap-2 text-sm text-neutral-500">
             <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" />
             Fitting each peer basket
