@@ -15,6 +15,14 @@ from analysis.spread import calculate_spread_metrics
 from analysis.risk import detect_correlation_breakdown
 from analysis.universes import serialized_peer_groups
 from analysis.peer_basket import DEFAULT_FORMATION_WINDOW, scan_peer_universe
+from analysis.strategy_backtest import (
+    DEFAULT_ANNUAL_BORROW_RATE,
+    DEFAULT_GROSS_EXPOSURE,
+    DEFAULT_INITIAL_CAPITAL,
+    DEFAULT_PARTICIPATION_RATE,
+    DEFAULT_TRANSACTION_COST_BPS,
+    run_strategy_analysis,
+)
 
 app = Flask(__name__)
 CORS(app)
@@ -147,6 +155,33 @@ def _strategy_error(message, code="invalid_request", status=400):
     return jsonify({"error": {"code": code, "message": str(message)}}), status
 
 
+def _strategy_number(payload, name, default, minimum, maximum):
+    raw_value = payload.get(name, default)
+    try:
+        value = float(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{name} must be a number") from exc
+    if not math.isfinite(value) or not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be between {minimum} and {maximum}")
+    return value
+
+
+def _strategy_target_and_peers(payload):
+    target = str(payload.get("target", "")).strip().upper()
+    raw_peers = payload.get("peers")
+    if not STRATEGY_TICKER_PATTERN.fullmatch(target):
+        raise ValueError(f"Invalid target ticker: {target or '(empty)'}")
+    if not isinstance(raw_peers, list):
+        raise ValueError("peers must be an array")
+    tickers = _strategy_tickers({"tickers": [target, *raw_peers]})
+    if tickers[0] != target:
+        raise ValueError("target must not also appear in peers")
+    peers = [ticker for ticker in tickers if ticker != target]
+    if len(peers) != len(raw_peers):
+        raise ValueError("target and peers must be unique")
+    return target, peers
+
+
 def _valid_pair_rows(df, ticker_a, ticker_b):
     column_a = f"Close_{ticker_a}"
     column_b = f"Close_{ticker_b}"
@@ -234,6 +269,96 @@ def scan_strategy_universe():
         return _strategy_error(exc)
     except Exception as exc:
         return _strategy_error(exc, code="strategy_scan_failed", status=500)
+
+
+@app.route("/api/strategy/backtest", methods=["POST"])
+def backtest_strategy():
+    try:
+        payload = _strategy_payload()
+        target, peers = _strategy_target_and_peers(payload)
+        start, end = _strategy_dates(payload)
+        initial_capital = _strategy_number(
+            payload, "initial_capital", DEFAULT_INITIAL_CAPITAL, 1_000, 10_000_000
+        )
+        gross_exposure = _strategy_number(
+            payload, "gross_exposure", DEFAULT_GROSS_EXPOSURE, 0.1, 2.0
+        )
+        transaction_cost_bps = _strategy_number(
+            payload,
+            "transaction_cost_bps",
+            DEFAULT_TRANSACTION_COST_BPS,
+            0.0,
+            100.0,
+        )
+        annual_borrow_rate = _strategy_number(
+            payload,
+            "annual_borrow_rate",
+            DEFAULT_ANNUAL_BORROW_RATE,
+            0.0,
+            1.0,
+        )
+        participation_rate = _strategy_number(
+            payload,
+            "participation_rate",
+            DEFAULT_PARTICIPATION_RATE,
+            0.0001,
+            0.10,
+        )
+
+        tickers = [target, *peers]
+        frame = load_universe_data(tickers, start, end)
+        if len(frame) < MIN_STRATEGY_OBSERVATIONS:
+            raise ValueError(
+                f"At least {MIN_STRATEGY_OBSERVATIONS} overlapping sessions are "
+                f"required; received {len(frame)}"
+            )
+        result = run_strategy_analysis(
+            frame,
+            target,
+            peers,
+            initial_capital=initial_capital,
+            gross_exposure=gross_exposure,
+            transaction_cost_bps=transaction_cost_bps,
+            annual_borrow_rate=annual_borrow_rate,
+            participation_rate=participation_rate,
+        )
+        result.update({
+            "strategy_version": "peer_residual_v1",
+            "target": target,
+            "peers": peers,
+            "as_of": pd.Timestamp(frame["Date"].iloc[-1]).date().isoformat(),
+            "config": {
+                "initial_capital": initial_capital,
+                "gross_exposure": gross_exposure,
+                "transaction_cost_bps": transaction_cost_bps,
+                "annual_borrow_rate": annual_borrow_rate,
+                "participation_rate": participation_rate,
+                "rebalance_sessions": 21,
+                "entry_z": 2.0,
+                "exit_z": 0.5,
+                "stop_z": 4.0,
+                "execution": "next_adjusted_open",
+            },
+            "data_quality": {
+                "observation_count": len(frame),
+                "first_date": pd.Timestamp(frame["Date"].iloc[0]).date().isoformat(),
+                "latest_date": pd.Timestamp(frame["Date"].iloc[-1]).date().isoformat(),
+                "warnings": [
+                    "Yahoo Finance is research-grade data",
+                    "Editable current peer membership may introduce survivorship bias",
+                ],
+            },
+            "methodology_note": (
+                "Every historical signal uses only information available by that close "
+                "and is filled at the next adjusted open. Results are simulated and do "
+                "not guarantee future performance."
+            ),
+        })
+        return jsonify(result)
+    except ValueError as exc:
+        return _strategy_error(exc)
+    except Exception as exc:
+        return _strategy_error(exc, code="strategy_backtest_failed", status=500)
 
 
 @app.route("/api/validate", methods=["GET"])

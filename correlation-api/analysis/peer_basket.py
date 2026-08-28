@@ -291,6 +291,7 @@ def fit_peer_basket(
         "half_life_days": residual_model["half_life_days"],
         "equilibrium_mean": residual_model["equilibrium_mean"],
         "equilibrium_std": residual_model["equilibrium_std"],
+        "current_residual_state": _finite_float(residual_model["state"][-1]),
         "zscore_method": residual_model["zscore_method"],
         "model_quality": quality,
         "cautions": cautions,
