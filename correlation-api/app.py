@@ -117,6 +117,8 @@ def _strategy_tickers(payload):
         raise ValueError("tickers must be an array")
     tickers = []
     for raw_ticker in raw_tickers:
+        if not isinstance(raw_ticker, str):
+            raise ValueError("ticker symbols must be strings")
         ticker = str(raw_ticker).strip().upper()
         if not STRATEGY_TICKER_PATTERN.fullmatch(ticker):
             raise ValueError(f"Invalid ticker symbol: {ticker or '(empty)'}")

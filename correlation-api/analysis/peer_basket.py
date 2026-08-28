@@ -72,14 +72,18 @@ def _fit_nonnegative_ridge(
     max_peer_weight: float,
 ) -> tuple[float, np.ndarray]:
     peer_count = peer_returns.shape[1]
+    target_mean = float(target_returns.mean())
+    peer_means = peer_returns.mean(axis=0)
+    centered_target = target_returns - target_mean
+    centered_peers = peer_returns - peer_means
 
-    initial, *_ = np.linalg.lstsq(peer_returns, target_returns, rcond=None)
+    initial, *_ = np.linalg.lstsq(centered_peers, centered_target, rcond=None)
     initial = np.clip(initial, 1e-4, None)
     if initial.sum() <= 1e-8:
         initial = np.ones(peer_count)
 
     def objective(coefficients: np.ndarray) -> float:
-        residual = target_returns - peer_returns @ coefficients
+        residual = centered_target - centered_peers @ coefficients
         return float(residual @ residual + ridge_alpha * (coefficients @ coefficients))
 
     constraints = [
@@ -106,9 +110,7 @@ def _fit_nonnegative_ridge(
     beta = float(coefficients.sum())
     if beta <= 1e-8:
         raise ValueError("Peer basket hedge beta is zero")
-    intercept = float(
-        target_returns.mean() - peer_returns.mean(axis=0) @ coefficients
-    )
+    intercept = float(target_mean - peer_means @ coefficients)
     return intercept, coefficients
 
 
@@ -254,7 +256,8 @@ def fit_peer_basket(
     residual_model = _fit_residual_process(residual_returns)
 
     total_variance = float(np.sum((target_returns - target_returns.mean()) ** 2))
-    residual_variance = float(np.sum(residual_returns ** 2))
+    fitted_residuals = target_returns - fitted_returns
+    residual_variance = float(np.sum(fitted_residuals ** 2))
     r_squared = None if total_variance <= 1e-12 else 1 - residual_variance / total_variance
     beta = float(coefficients.sum())
     weights = coefficients / beta

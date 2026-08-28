@@ -14,6 +14,7 @@ def synthetic_universe(
     phi=0.82,
     residual_scale=0.002,
     final_state=None,
+    daily_alpha=0.0,
     seed=41,
 ):
     rng = np.random.default_rng(seed)
@@ -27,7 +28,11 @@ def synthetic_universe(
     if final_state is not None:
         residual_state[-1] = final_state
     residual_returns = np.diff(residual_state, prepend=0.0)
-    target_returns = peer_returns @ np.array([0.5, 0.3, 0.2]) + residual_returns
+    target_returns = (
+        daily_alpha
+        + peer_returns @ np.array([0.5, 0.3, 0.2])
+        + residual_returns
+    )
     all_returns = np.column_stack([target_returns, peer_returns])
     prices = 100 * np.exp(np.vstack([np.zeros(4), np.cumsum(all_returns, axis=0)]))
 
@@ -72,6 +77,18 @@ class TestPeerBasketModel(unittest.TestCase):
         self.assertEqual(result["model_quality"], "weak")
         self.assertTrue(result["cautions"])
 
+    def test_r_squared_scores_the_fitted_intercept(self):
+        from analysis.peer_basket import fit_peer_basket
+
+        result = fit_peer_basket(
+            synthetic_universe(residual_scale=0.0001, daily_alpha=0.005),
+            "AAA",
+            ["BBB", "CCC", "DDD"],
+        )
+
+        self.assertAlmostEqual(result["intercept"], 0.005, delta=0.0002)
+        self.assertGreater(result["r_squared"], 0.95)
+
     def test_series_is_only_returned_when_requested(self):
         from analysis.peer_basket import fit_peer_basket
 
@@ -115,6 +132,23 @@ class TestPeerBasketModel(unittest.TestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.get_json()["error"]["code"], "invalid_request")
+        mock_load.assert_not_called()
+
+    def test_scan_api_rejects_non_string_tickers_before_loading(self):
+        from app import app
+
+        with patch("app.load_universe_data") as mock_load:
+            with app.test_client() as client:
+                response = client.post(
+                    "/api/strategy/scan",
+                    json={"tickers": ["AAA", "BBB", "CCC", None]},
+                )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.get_json()["error"]["message"],
+            "ticker symbols must be strings",
+        )
         mock_load.assert_not_called()
 
 
