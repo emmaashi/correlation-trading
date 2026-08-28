@@ -11,6 +11,7 @@ import MetricsPanel from "@/components/correlation/MetricsPanel";
 import SpreadHistogram from "@/components/correlation/SpreadHistogram";
 import Toast from "@/components/correlation/Toast";
 import RiskWarningBanner from "@/components/correlation/RiskWarningBanner";
+import PairExplorerSkeleton from "@/components/correlation/PairExplorerSkeleton";
 
 import type {
   PairInfo,
@@ -41,7 +42,7 @@ export default function CorrelationTradingPage() {
   const [pairSignals, setPairSignals] = useState<
     Record<string, TradingSignalSummary | null>
   >({});
-  const [loadingPairSignals, setLoadingPairSignals] = useState(false);
+  const [loadingPairSignals, setLoadingPairSignals] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" } | null>(null);
 
@@ -179,6 +180,10 @@ export default function CorrelationTradingPage() {
     setError(null);
   };
 
+  if (!selectedPair && loadingPairSignals) {
+    return <PairExplorerSkeleton />;
+  }
+
   return (
     <main className="mx-6 sm:mx-0 min-h-screen bg-black text-neutral-50">
       {toast && (
@@ -189,8 +194,8 @@ export default function CorrelationTradingPage() {
         />
       )}
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 min-h-[calc(100vh-80px)]">
-        <AnimatePresence mode="wait">
+      <div className="max-w-6xl mx-auto min-h-[calc(100vh-68px)] px-4 pb-8 sm:px-6">
+        <AnimatePresence initial={false} mode="wait">
           {!selectedPair ? (
             <motion.div
               key="selector"
