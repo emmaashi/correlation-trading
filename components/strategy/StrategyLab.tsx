@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Popover from "@radix-ui/react-popover";
+import * as Select from "@radix-ui/react-select";
 import { format, parseISO } from "date-fns";
 import { DayPicker } from "react-day-picker";
 import {
@@ -398,21 +399,54 @@ export default function StrategyLab({ initialState }: { initialState?: StrategyL
 
       <section className="mt-8 border-y border-white/[0.08] py-5">
         <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)_auto] lg:items-end">
-          <label className="block">
-            <span className="mb-1.5 block text-[10px] font-medium uppercase text-neutral-500">Peer group</span>
-            <div className="relative">
-              <select
-                value={selectedGroupId}
-                onChange={(event) => selectGroup(event.target.value)}
-                className="h-9 w-full appearance-none rounded-md border border-white/[0.10] bg-neutral-950 px-3 pr-8 text-sm text-neutral-200 outline-none transition-colors focus:border-[#c28b00]/60"
+          <div className="block">
+            <span
+              id="peer-group-label"
+              className="mb-1.5 block text-[10px] font-medium uppercase text-neutral-500"
+            >
+              Peer group
+            </span>
+            <Select.Root
+              value={selectedGroupId}
+              onValueChange={selectGroup}
+            >
+              <Select.Trigger
+                aria-labelledby="peer-group-label"
+                className="group inline-flex h-9 w-full items-center justify-between rounded-md border border-white/[0.10] bg-neutral-950 px-3 text-sm text-neutral-200 outline-none transition-colors hover:border-white/[0.18] focus:border-[#c28b00]/60 focus:ring-1 focus:ring-[#c28b00]/20 data-[state=open]:border-[#c28b00]/60"
               >
-                {universes?.groups.map((group) => (
-                  <option key={group.id} value={group.id}>{group.name}</option>
-                ))}
-              </select>
-              <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-2.5 top-2.5 h-4 w-4 text-neutral-600" />
-            </div>
-          </label>
+                <Select.Value />
+                <Select.Icon asChild>
+                  <ChevronDown
+                    aria-hidden="true"
+                    className="h-4 w-4 text-neutral-600 transition-transform group-data-[state=open]:rotate-180 group-data-[state=open]:text-[#d4a020]"
+                  />
+                </Select.Icon>
+              </Select.Trigger>
+              <Select.Portal>
+                <Select.Content
+                  position="popper"
+                  sideOffset={6}
+                  collisionPadding={16}
+                  className="z-50 w-[var(--radix-select-trigger-width)] overflow-hidden rounded-md border border-white/[0.12] bg-neutral-950 shadow-2xl shadow-black/70"
+                >
+                  <Select.Viewport className="max-h-72 p-1">
+                    {universes?.groups.map((group) => (
+                      <Select.Item
+                        key={group.id}
+                        value={group.id}
+                        className="relative flex h-9 cursor-default select-none items-center rounded px-3 pr-9 text-sm text-neutral-300 outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-40 data-[highlighted]:bg-white/[0.07] data-[highlighted]:text-neutral-50 data-[state=checked]:bg-[#c28b00]/10 data-[state=checked]:text-[#f0c34e]"
+                      >
+                        <Select.ItemText>{group.name}</Select.ItemText>
+                        <Select.ItemIndicator className="absolute right-3 inline-flex items-center justify-center text-[#d4a020]">
+                          <CheckCircle2 aria-hidden="true" className="h-3.5 w-3.5" />
+                        </Select.ItemIndicator>
+                      </Select.Item>
+                    ))}
+                  </Select.Viewport>
+                </Select.Content>
+              </Select.Portal>
+            </Select.Root>
+          </div>
 
           <div>
             <span className="mb-1.5 block text-[10px] font-medium uppercase text-neutral-500">Editable universe</span>
