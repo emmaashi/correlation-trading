@@ -36,8 +36,39 @@ The suite mocks market-data downloads and does not require network access.
 | GET | `/api/spread` | `ticker_a`, `ticker_b`, `start`, `end`, `spread_type`, `window` | Descriptive spread series plus current pair-model eligibility and residual signal diagnostics |
 | GET | `/api/signal` | `ticker_a`, `ticker_b`, `start`, `end`, `window` | Compact log-ratio z-score and Short, Long, or Hold direction for pair cards |
 | GET | `/api/risk/breakdown` | `ticker_a`, `ticker_b`, optional `end`, optional `start` override | Return-correlation breakdown signal with its own lookback window, current 60d correlation, baseline, reason, and `broken_since` |
+| GET | `/api/strategy/universes` | - | Versioned, editable peer-group presets and research caveats |
+| POST | `/api/strategy/scan` | JSON peer group, `start`, and `end` | Ranked target signals, diagnostics, peer weights, and data warnings |
+| POST | `/api/strategy/backtest` | JSON target, peers, dates, and optional strategy config | Current signal, walk-forward curves, metrics, trades, costs, holdout results, and 126/252/504-session sensitivity runs |
 
 Dates are `YYYY-MM-DD`. `spread_type` is one of the values supported by `analysis/spread.py` (default `log_ratio`).
+
+## Peer-basket Strategy Lab
+
+For every target in a peer group, the scanner models adjusted daily log returns
+against the remaining 3-7 stocks. The constrained ridge fit uses non-negative
+peer weights that sum to one, caps each weight at 60%, and reports the fitted
+beta separately as the basket hedge size. The accumulated return residual is
+standardized with an AR(1)/OU equilibrium estimate when valid and an empirical
+fallback when the model is weak.
+
+Signals use fixed, predeclared rules: z-score at or below -2 is Long Target / Short
+Peers, z-score at or above 2 is Short Target / Long Peers, and the interval
+between is Hold. ADF results, half-life, fit, concentration, and data cautions
+remain visible and advisory; they never hide an otherwise calculable signal.
+
+The backtest refits every 21 sessions using only prior data. A close signal is
+filled at the next adjusted open, exits inside +/-0.5, stops outside +/-4, and
+times out after three estimated half-lives clamped to 5-60 sessions. Defaults
+are $100,000 initial capital, 1.0x gross exposure, 5 bps per dollar traded, 3%
+annualized short borrow, and a 1% share of 20-day median dollar volume. It
+reports the full walk-forward history and final 30% holdout separately. The
+126, 252, and 504-session formation windows are all shown rather than selecting
+the best result.
+
+Strategy endpoints require at least 504 overlapping sessions, reject stale or
+invalid data with structured 400 responses, limit groups to eight stocks, and
+limit backtests to ten years. These outputs are research evidence, not a profit
+guarantee or a live execution system.
 
 ## Pair-model diagnostics
 
@@ -91,8 +122,9 @@ reversion or trading performance.
 | Column | Meaning |
 |--------|---------|
 | `Date` | Unique, ascending, timezone-naive trading date |
-| `Close` | Yahoo `Adj Close`, used by all research correlation, return, and spread calculations |
-| `RawClose` | Yahoo unadjusted `Close`, retained for future execution simulation |
+| `Open`, `High`, `Low`, `Close` | Adjusted OHLC, used for signals and next-open strategy simulation |
+| `RawOpen`, `RawHigh`, `RawLow`, `RawClose` | Yahoo unadjusted OHLC, retained for auditing the adjustment factor |
+| `Volume` | Reported daily share volume, used for the simulation's capacity limit |
 | `Dividends` | Cash dividend action amount reported by Yahoo; zero on other rows |
 | `StockSplits` | Split ratio reported by Yahoo; zero on other rows |
 | `CapitalGains` | Capital-gains distribution when Yahoo supplies it, mainly for funds |
@@ -100,7 +132,7 @@ reversion or trading performance.
 
 Both price columns must be finite and strictly positive. Action columns must be finite and non-negative. Pair data suffixes every non-date field with its ticker, so consumers continue to use `Close_<TICKER>` while raw and action fields remain available as `RawClose_<TICKER>`, `Dividends_<TICKER>`, and so on.
 
-The cache key is the **exact** `(ticker, start, end)` tuple, so different date ranges produce different files. Cache schema `v4` is required; pre-`v4` files contain unadjusted research closes and are not reused. Cache files live under `correlation-api/data/raw/` and are gitignored. Delete them anytime to force a fresh fetch.
+The cache key is the **exact** `(ticker, start, end)` tuple, so different date ranges produce different files. Cache schema `v5` is required; older files do not contain the complete adjusted OHLCV contract and are not reused. Cache files live under `correlation-api/data/raw/` and are gitignored. Delete them anytime to force a fresh fetch.
 
 Yahoo's adjusted close reflects its current split and distribution history, which Yahoo can revise. It is appropriate for historical research but is not a point-in-time execution price. `RawClose` and the action columns preserve inputs needed for a future daily execution model, but they do not provide intraday prices, publication timestamps, fees, slippage, or survivorship-bias controls.
 
@@ -111,6 +143,9 @@ correlation-api/
 │   ├── data_loader.py        # yfinance fetch + CSV cache
 │   ├── correlation.py        # Lagged Pearson correlation of log returns
 │   ├── pair_model.py         # Cointegration and mean-reversion quality gate
+│   ├── peer_basket.py        # Constrained peer model, diagnostics, and scanner
+│   ├── strategy_backtest.py  # Walk-forward execution and portfolio ledger
+│   ├── universes.py          # Versioned editable peer presets
 │   └── spread.py             # Spread series, rolling z-score, metrics
 ├── data/raw/                 # CSV cache (gitignored)
 └── requirements.txt
