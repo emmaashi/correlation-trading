@@ -12,6 +12,7 @@ from analysis.correlation import compute_lagged_correlation
 from analysis.pair_model import validate_pair_model
 from analysis.spread import calculate_spread_metrics
 from analysis.risk import detect_correlation_breakdown
+from analysis.universes import serialized_peer_groups
 
 app = Flask(__name__)
 CORS(app)
@@ -134,6 +135,11 @@ def _trading_signal_direction(zscore):
 @app.route("/api/pairs", methods=["GET"])
 def get_pairs():
     return jsonify(PAIRS)
+
+
+@app.route("/api/strategy/universes", methods=["GET"])
+def get_strategy_universes():
+    return jsonify(serialized_peer_groups())
 
 
 @app.route("/api/validate", methods=["GET"])
