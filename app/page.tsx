@@ -20,7 +20,6 @@ import type {
   CorrelationResponse,
   RiskBreakdownResponse,
   SpreadResponse,
-  SignalLevel,
   BacktestResponse,
   TradingSignalSummary,
 } from "@/lib/correlationTypes";
@@ -195,7 +194,7 @@ export default function CorrelationTradingPage() {
     setBacktestError(null);
     try {
       const res = await fetch(
-        `${API_BASE}/backtest?ticker_a=${selectedPair.ticker_a}&ticker_b=${selectedPair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}&spread_type=${spreadType}&window=${params.window}&entry_z=${params.entry_z}&exit_z=${params.exit_z}&hedge_ratio=${params.hedge_ratio}`
+        `${API_BASE}/backtest?ticker_a=${selectedPair.ticker_a}&ticker_b=${selectedPair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}&spread_type=log_ratio&window=${params.window}&entry_z=${params.entry_z}&exit_z=${params.exit_z}&hedge_ratio=${params.hedge_ratio}`
       );
       if (!res.ok) {
         const errBody = await res.json().catch(() => ({}));
