@@ -410,8 +410,8 @@ def get_correlation():
         })
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    except Exception:
+        return jsonify({"error": "Backtest request failed"}), 500
 
 
 @app.route("/api/spread", methods=["GET"])
