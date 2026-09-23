@@ -28,6 +28,17 @@ def calculate_log_ratio_spread(series_a: pd.Series, series_b: pd.Series, hedge_r
     return log_a - hedge_ratio * log_b
 
 
+def calculate_zscore_components(
+    spread: pd.Series, window: int = 60
+) -> Tuple[pd.Series, pd.Series, pd.Series]:
+    if isinstance(window, bool) or not isinstance(window, Integral) or window < 2:
+        raise ValueError("window must be an integer of at least 2")
+
+    mean = spread.rolling(window=window, min_periods=window).mean()
+    std = spread.rolling(window=window, min_periods=window).std()
+    return mean, std, (spread - mean) / _safe_divisor(std)
+
+
 def calculate_zscore(spread: pd.Series, window: int | None = 60) -> pd.Series:
     """
     Calculate z-score of the spread.
@@ -76,7 +87,13 @@ def calculate_spread_metrics(df: pd.DataFrame, ticker_a: str, ticker_b: str,
     else:
         raise ValueError(f"Unknown spread_type: {spread_type}")
     
-    zscore = calculate_zscore(spread, window=window)
+    rolling_mean, rolling_std, zscore = calculate_zscore_components(
+        spread, window=window
+    )
+    band_1_upper = rolling_mean + rolling_std
+    band_1_lower = rolling_mean - rolling_std
+    band_2_upper = rolling_mean + 2 * rolling_std
+    band_2_lower = rolling_mean - 2 * rolling_std
     
     result_df = pd.DataFrame({
         'Date': df['Date'].values,

@@ -13,6 +13,16 @@ from analysis.correlation import compute_lagged_correlation
 from analysis.pair_model import validate_pair_model
 from analysis.spread import calculate_spread_metrics
 from analysis.risk import detect_correlation_breakdown
+from analysis.universes import serialized_peer_groups
+from analysis.peer_basket import DEFAULT_FORMATION_WINDOW, scan_peer_universe
+from analysis.strategy_backtest import (
+    DEFAULT_ANNUAL_BORROW_RATE,
+    DEFAULT_GROSS_EXPOSURE,
+    DEFAULT_INITIAL_CAPITAL,
+    DEFAULT_PARTICIPATION_RATE,
+    DEFAULT_TRANSACTION_COST_BPS,
+    run_strategy_analysis,
+)
 from analysis.backtest import generate_zscore_signals, run_backtest
 
 app = Flask(__name__)
@@ -406,7 +416,6 @@ def get_correlation():
 
 @app.route("/api/spread", methods=["GET"])
 def get_spread():
-    window = request.args.get("window", 60, type=int)
     ticker_a = request.args.get("ticker_a", "").upper()
     ticker_b = request.args.get("ticker_b", "").upper()
     start = request.args.get("start", "2023-01-01")
@@ -420,11 +429,21 @@ def get_spread():
             "window", default=DEFAULT_SIGNAL_WINDOW, minimum=2
         )
         df = load_pair_data(ticker_a, ticker_b, start, end)
-        if len(df) == 0:
-            return jsonify({"error": "No data found for the given tickers and date range"}), 400
-            
-        df = df.ffill().dropna()
-        spread_df, metrics = calculate_spread_metrics(df, ticker_a, ticker_b, spread_type, window=window)
+        df = _valid_pair_rows(df, ticker_a, ticker_b)
+        if len(df) < window:
+            raise ValueError(
+                "At least "
+                f"{window} overlapping observations are required "
+                f"for window={window}; "
+                f"received {len(df)}"
+            )
+        spread_df, metrics = calculate_spread_metrics(
+            df,
+            ticker_a,
+            ticker_b,
+            spread_type=spread_type,
+            window=window,
+        )
 
         price_a = spread_df[f"{ticker_a}_price"]
         price_b = spread_df[f"{ticker_b}_price"]
