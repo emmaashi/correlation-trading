@@ -49,22 +49,12 @@ export default function BacktestControls({
   };
 
   const handleRun = () => {
-    if (
-      params.window === "" ||
-      params.entry_z === "" ||
-      params.exit_z === "" ||
-      params.hedge_ratio === ""
-    ) {
-      setLocalError("Please fill in all parameters before running the backtest.");
-      return;
-    }
-
     if ((params.exit_z as number) >= (params.entry_z as number)) {
       setLocalError("Exit Z-Score must be strictly less than Entry Z-Score.");
       return;
     }
     
-    setLocalError(null);
+    setLocalError(null); 
     onRunBacktest({
       window: params.window as number,
       entry_z: params.entry_z as number,

@@ -62,6 +62,35 @@ class TestBacktestHarness(unittest.TestCase):
         self.assertEqual(len(signals), len(self.spread))
         self.assertEqual(len(zscore), len(self.spread))
 
+    def test_backtest_loads_warmup_window_before_requested_start(self):
+        from unittest.mock import patch
+        from app import app
+        import pandas as pd
+        import numpy as np
+
+        dates = pd.date_range(start="2023-01-01", periods=100)
+        prices_msft = 100.0 + 5.0 * np.sin(np.arange(100) / 3.0)
+        prices_googl = [100.0] * 100
+        mock_df = pd.DataFrame({
+            "Date": dates,
+            "Close_MSFT": prices_msft,
+            "Ticker_MSFT": ["MSFT"] * 100,
+            "Close_GOOGL": prices_googl,
+            "Ticker_GOOGL": ["GOOGL"] * 100
+        })
+
+        with patch("app.load_pair_data") as mock_load:
+            mock_load.return_value = mock_df
+            with app.test_client() as client:
+                resp = client.get(
+                    "/api/backtest?ticker_a=MSFT&ticker_b=GOOGL&start=2023-03-01&end=2023-03-31&window=20&entry_z=1.0&exit_z=0.0"
+                )
+                self.assertEqual(resp.status_code, 200)
+                # window=20 -> warmup_days = int(20 * 2 + 10) = 50
+                # 2023-03-01 minus 50 days is 2023-01-10
+                self.assertEqual(mock_load.call_args.args[2], "2023-01-10")
+                self.assertEqual(mock_load.call_args.args[3], "2023-03-31")
+
     def test_api_integration(self):
         from unittest.mock import patch
         from app import app
