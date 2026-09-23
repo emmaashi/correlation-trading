@@ -11,6 +11,8 @@ import MetricsPanel from "@/components/correlation/MetricsPanel";
 import SpreadHistogram from "@/components/correlation/SpreadHistogram";
 import Toast from "@/components/correlation/Toast";
 import RiskWarningBanner from "@/components/correlation/RiskWarningBanner";
+import BacktestControls, { BacktestParams } from "@/components/correlation/BacktestControls";
+import BacktestResults from "@/components/correlation/BacktestResults";
 import PairExplorerSkeleton from "@/components/correlation/PairExplorerSkeleton";
 
 import type {
@@ -18,6 +20,7 @@ import type {
   CorrelationResponse,
   RiskBreakdownResponse,
   SpreadResponse,
+  BacktestResponse,
   TradingSignalSummary,
 } from "@/lib/correlationTypes";
 import {
@@ -45,6 +48,10 @@ export default function CorrelationTradingPage() {
   const [loadingPairSignals, setLoadingPairSignals] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" } | null>(null);
+
+  const [backtestData, setBacktestData] = useState<BacktestResponse | null>(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
+  const [backtestError, setBacktestError] = useState<string | null>(null);
 
   const fetchAnalysis = useCallback(
     async (pair: PairInfo) => {
@@ -178,6 +185,28 @@ export default function CorrelationTradingPage() {
     setSpreadData(null);
     setRiskData(null);
     setError(null);
+    setBacktestData(null);
+  };
+
+  const runBacktest = async (params: BacktestParams) => {
+    if (!selectedPair) return;
+    setBacktestLoading(true);
+    setBacktestError(null);
+    try {
+      const res = await fetch(
+        `${API_BASE}/backtest?ticker_a=${selectedPair.ticker_a}&ticker_b=${selectedPair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}&spread_type=log_ratio&window=${params.window}&entry_z=${params.entry_z}&exit_z=${params.exit_z}&hedge_ratio=${params.hedge_ratio}`
+      );
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody.error || "Failed to run backtest");
+      }
+      const data: BacktestResponse = await res.json();
+      setBacktestData(data);
+    } catch (e: any) {
+      setBacktestError(e.message || "Backtest failed");
+    } finally {
+      setBacktestLoading(false);
+    }
   };
 
   if (!selectedPair && loadingPairSignals) {
@@ -272,6 +301,14 @@ export default function CorrelationTradingPage() {
                     data={spreadData.data}
                     metrics={spreadData.metrics}
                   />
+
+                  <BacktestControls
+                    pair={selectedPair}
+                    onRunBacktest={runBacktest}
+                    loading={backtestLoading}
+                    apiError={backtestError}
+                  />
+                  {backtestData && <BacktestResults data={backtestData} />}
                 </div>
               )}
             </motion.div>

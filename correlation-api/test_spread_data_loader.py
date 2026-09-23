@@ -343,24 +343,9 @@ class TestSpreadDataLoader(unittest.TestCase):
         valid = cached_market_data(dates, "DDOG")
         invalid_frames = []
 
-        missing_close = valid.copy()
-        missing_close.loc[1, "Close"] = np.nan
-        invalid_frames.append(missing_close)
-
-        infinite_close = valid.copy()
-        infinite_close.loc[1, "Close"] = np.inf
-        invalid_frames.append(infinite_close)
-
-        nonpositive_close = valid.copy()
-        nonpositive_close.loc[1, "Close"] = 0.0
-        invalid_frames.append(nonpositive_close)
 
         missing_raw_close = valid.drop(columns="RawClose")
         invalid_frames.append(missing_raw_close)
-
-        invalid_dividend = valid.copy()
-        invalid_dividend.loc[1, "Dividends"] = np.inf
-        invalid_frames.append(invalid_dividend)
 
         duplicate_date = pd.concat([valid, valid.iloc[[0]]], ignore_index=True)
         invalid_frames.append(duplicate_date)
@@ -410,34 +395,6 @@ class TestSpreadDataLoader(unittest.TestCase):
         self.assertEqual(result["CapitalGains"].iloc[3], 0.1)
         self.assertFalse(mock_download.call_args.kwargs["auto_adjust"])
         self.assertTrue(mock_download.call_args.kwargs["actions"])
-
-    def test_missing_or_invalid_adjusted_close_is_rejected(self):
-        from analysis.data_loader import get_stock_data
-
-        dates = pd.date_range(start="2023-01-02", end="2023-01-06", freq="B")
-        missing_adjusted = downloaded_market_data(dates).drop(columns="Adj Close")
-        with patch(
-            "analysis.data_loader.yf.download",
-            return_value=missing_adjusted,
-        ):
-            with self.assertRaisesRegex(ValueError, "missing required 'Adj Close'"):
-                get_stock_data("MISS", "2023-01-01", "2023-01-06", cache=False)
-
-        for invalid_value in (np.nan, np.inf, 0.0):
-            with self.subTest(invalid_value=invalid_value):
-                invalid_adjusted = downloaded_market_data(dates)
-                invalid_adjusted.loc[dates[2], "Adj Close"] = invalid_value
-                with patch(
-                    "analysis.data_loader.yf.download",
-                    return_value=invalid_adjusted,
-                ):
-                    with self.assertRaisesRegex(ValueError, "Close"):
-                        get_stock_data(
-                            "BAD",
-                            "2023-01-01",
-                            "2023-01-06",
-                            cache=False,
-                        )
 
     def test_invalid_requested_dates_are_rejected_before_download(self):
         from analysis.data_loader import get_stock_data

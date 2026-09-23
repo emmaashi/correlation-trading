@@ -31,11 +31,11 @@ export default function Toast({ message, type, onClose, duration = 4000 }: Toast
     <AnimatePresence>
       {visible && (
         <motion.div
-          initial={{ opacity: 0, x: 12, y: 8 }}
-          animate={{ opacity: 1, x: 0, y: 0 }}
-          exit={{ opacity: 0, x: 12, y: 8 }}
+          initial={{ opacity: 0, y: -20, x: "-50%" }}
+          animate={{ opacity: 1, y: 0, x: "-50%" }}
+          exit={{ opacity: 0, y: -20, x: "-50%" }}
           transition={{ duration: 0.2 }}
-          className="fixed bottom-4 left-4 right-4 z-[100] sm:left-auto sm:w-[22rem]"
+          className="fixed top-6 left-1/2 z-[100] max-w-md w-full px-4"
         >
           <div
             role="alert"
