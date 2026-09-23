@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from numbers import Integral
 from typing import Tuple, Dict
 
 
@@ -33,19 +34,13 @@ def calculate_zscore(spread: pd.Series, window: int | None = 60) -> pd.Series:
     
     Args:
         spread: The spread series
-        window: Rolling window size. If None, uses entire history.
+        window: Rolling window size.
     
     Returns:
         Z-score normalized spread
     """
-    if window is None:
-        mean = spread.mean()
-        std = _safe_divisor(spread.std())
-    else:
-        mean = spread.rolling(window=window).mean()
-        std = _safe_divisor(spread.rolling(window=window).std())
-    
-    return (spread - mean) / std
+    _, _, zscore = calculate_zscore_components(spread, window=window)
+    return zscore
 
 
 def calculate_spread_metrics(df: pd.DataFrame, ticker_a: str, ticker_b: str, 
@@ -88,23 +83,46 @@ def calculate_spread_metrics(df: pd.DataFrame, ticker_a: str, ticker_b: str,
         f'{ticker_a}_price': series_a.values,
         f'{ticker_b}_price': series_b.values,
         'spread': spread.values,
-        'zscore': zscore.values
+        'rolling_mean': rolling_mean.values,
+        'rolling_std': rolling_std.values,
+        'band_1_upper': band_1_upper.values,
+        'band_1_lower': band_1_lower.values,
+        'band_2_upper': band_2_upper.values,
+        'band_2_lower': band_2_lower.values,
+        'zscore': zscore.values,
     })
     
     clean_spread = spread.dropna()
-    clean_zscore = zscore.dropna()
+
+    def finite_value(value):
+        if pd.isna(value):
+            return None
+        value = float(value)
+        return value if np.isfinite(value) else None
+
+    def current_value(series):
+        if series.empty or pd.isna(series.iloc[-1]):
+            return None
+        return finite_value(series.iloc[-1])
 
     metrics = {
         'spread_type': spread_type,
         'ticker_a': ticker_a,
         'ticker_b': ticker_b,
+        'zscore_window': window,
         'num_observations': len(clean_spread),
-        'mean': float(clean_spread.mean()) if len(clean_spread) > 0 else 0.0,
-        'std': float(clean_spread.std()) if len(clean_spread) > 0 else 0.0,
-        'min': float(clean_spread.min()) if len(clean_spread) > 0 else 0.0,
-        'max': float(clean_spread.max()) if len(clean_spread) > 0 else 0.0,
-        'current': float(clean_spread.iloc[-1]) if len(clean_spread) > 0 else 0.0,
-        'current_zscore': float(clean_zscore.iloc[-1]) if len(clean_zscore) > 0 else 0.0,
+        'descriptive_mean': finite_value(clean_spread.mean()),
+        'descriptive_std': finite_value(clean_spread.std()),
+        'descriptive_min': finite_value(clean_spread.min()),
+        'descriptive_max': finite_value(clean_spread.max()),
+        'current': current_value(spread),
+        'current_mean': current_value(rolling_mean),
+        'current_std': current_value(rolling_std),
+        'current_band_1_upper': current_value(band_1_upper),
+        'current_band_1_lower': current_value(band_1_lower),
+        'current_band_2_upper': current_value(band_2_upper),
+        'current_band_2_lower': current_value(band_2_lower),
+        'current_zscore': current_value(zscore),
     }
     
     return result_df, metrics

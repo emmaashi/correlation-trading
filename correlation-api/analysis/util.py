@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 
@@ -10,3 +11,9 @@ def clean_series(series: pd.Series) -> pd.Series:
     if not isinstance(numeric, pd.Series):
         numeric = pd.Series(numeric, index=cleaned.index)
     return numeric
+
+
+def calculate_log_returns(series: pd.Series) -> pd.Series:
+    """Calculate daily log returns from a positive price series."""
+    prices = clean_series(series).where(lambda values: values > 0)
+    return np.log(prices).diff()

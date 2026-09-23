@@ -76,6 +76,49 @@ body {
     overscroll-behavior: none;
 }
 
+@keyframes skeleton-shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+.skeleton-shimmer {
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0.035) 20%,
+        rgba(255, 255, 255, 0.11) 50%,
+        rgba(255, 255, 255, 0.035) 80%
+    );
+    background-size: 220% 100%;
+    animation: skeleton-shimmer 1.35s ease-in-out infinite;
+}
+
+.research-route-skeletons,
+.research-route-skeleton-pair,
+.research-route-skeleton-strategy {
+    display: none;
+}
+
+html[data-research-transition] .research-route-content {
+    display: none;
+}
+
+html[data-research-transition] .research-route-skeletons,
+html[data-research-transition="pair"] .research-route-skeleton-pair,
+html[data-research-transition="strategy"] .research-route-skeleton-strategy {
+    display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .skeleton-shimmer {
+        animation: none;
+        background: rgba(255, 255, 255, 0.065);
+    }
+}
+
 @media all and (min-width: 0px) and (max-width: 639px) {
     .teamPic {
         opacity: 40%;

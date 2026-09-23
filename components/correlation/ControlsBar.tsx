@@ -1,13 +1,12 @@
 "use client";
 
 import { PairInfo, SECTOR_COLORS } from "@/lib/correlationTypes";
+import { todayISO, yearsAgoISO } from "@/lib/dateUtils";
 
 interface ControlsBarProps {
   pair: PairInfo;
   dateRange: { start: string; end: string };
-  spreadType: string;
   onDateRangeChange: (range: { start: string; end: string }) => void;
-  onSpreadTypeChange: (type: string) => void;
   onBack: () => void;
   loading: boolean;
 }
@@ -20,33 +19,24 @@ const PRESETS = [
   { label: "Max", years: 10 },
 ];
 
-const SPREAD_TYPES = [
-  { value: "log_ratio", label: "Log Ratio" },
-  { value: "ratio", label: "Ratio" },
-  { value: "difference", label: "Difference" },
-];
-
-function yearsAgo(n: number): string {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - n);
-  return d.toISOString().split("T")[0];
-}
-
 export default function ControlsBar({
   pair,
   dateRange,
-  spreadType,
   onDateRangeChange,
-  onSpreadTypeChange,
   onBack,
   loading,
 }: ControlsBarProps) {
-  const activePreset = PRESETS.find((p) => dateRange.start === yearsAgo(p.years));
+  const activePreset = PRESETS.find(
+    (p) => dateRange.start === yearsAgoISO(p.years)
+  );
   const sectorColor = SECTOR_COLORS[pair.sector] ?? "#888";
 
   return (
-    <div className="sticky top-0 z-40 -mx-6 sm:-mx-0">
-      <div className="backdrop-blur-xl bg-black/70 border-b border-white/[0.06] px-4 sm:px-6 py-3">
+    <div
+      className="sticky z-30 -mx-6 sm:-mx-0"
+      style={{ top: "var(--fixed-header-offset, 0px)" }}
+    >
+      <div className="backdrop-blur-xl bg-black/70 border-b border-white/[0.06] px-6 sm:px-0 py-3">
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 max-w-6xl mx-auto">
           {/* Back + pair info */}
           <div className="flex items-center gap-3 min-w-0 flex-shrink-0">
@@ -82,8 +72,8 @@ export default function ControlsBar({
                 key={p.label}
                 onClick={() =>
                   onDateRangeChange({
-                    start: yearsAgo(p.years),
-                    end: new Date().toISOString().split("T")[0],
+                    start: yearsAgoISO(p.years),
+                    end: todayISO(),
                   })
                 }
                 className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
@@ -93,23 +83,6 @@ export default function ControlsBar({
                 }`}
               >
                 {p.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Spread type */}
-          <div className="flex items-center gap-1 bg-white/[0.04] rounded-lg p-0.5">
-            {SPREAD_TYPES.map((st) => (
-              <button
-                key={st.value}
-                onClick={() => onSpreadTypeChange(st.value)}
-                className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
-                  spreadType === st.value
-                    ? "bg-white/[0.12] text-neutral-50"
-                    : "text-neutral-400 hover:text-neutral-200"
-                }`}
-              >
-                {st.label}
               </button>
             ))}
           </div>

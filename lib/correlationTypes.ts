@@ -24,6 +24,12 @@ export interface SpreadPoint {
   norm_a: number | null;
   norm_b: number | null;
   spread: number | null;
+  rolling_mean: number | null;
+  rolling_std: number | null;
+  band_1_upper: number | null;
+  band_1_lower: number | null;
+  band_2_upper: number | null;
+  band_2_lower: number | null;
   zscore: number | null;
 }
 
@@ -32,12 +38,55 @@ export interface SpreadMetrics {
   ticker_a: string;
   ticker_b: string;
   num_observations: number;
-  mean: number;
-  std: number;
-  min: number;
-  max: number;
-  current: number;
-  current_zscore: number;
+  descriptive_mean: number | null;
+  descriptive_std: number | null;
+  descriptive_min: number | null;
+  descriptive_max: number | null;
+  current: number | null;
+  current_mean: number | null;
+  current_std: number | null;
+  current_band_1_upper: number | null;
+  current_band_1_lower: number | null;
+  current_band_2_upper: number | null;
+  current_band_2_lower: number | null;
+  current_zscore: number | null;
+  zscore_window: number;
+}
+
+export type PairModelRejectionReason =
+  | "insufficient_history"
+  | "invalid_data"
+  | "invalid_hedge_ratio"
+  | "cointegration_not_significant"
+  | "residual_not_stationary"
+  | "non_mean_reverting"
+  | "implausible_half_life";
+
+export interface PairModelValidation {
+  eligible: boolean;
+  rejection_reasons: PairModelRejectionReason[];
+  observation_count: number;
+  intercept: number | null;
+  hedge_ratio: number | null;
+  cointegration_pvalue: number | null;
+  adf_pvalue: number | null;
+  ar1_coefficient: number | null;
+  half_life_days: number | null;
+  residual_zscore_window: number | null;
+  residual_zscore_observations: number;
+  current_residual: number | null;
+  current_residual_mean: number | null;
+  current_residual_std: number | null;
+  current_residual_zscore: number | null;
+  signal_zscore: number | null;
+  diagnostic_scope: "current_snapshot";
+  thresholds: {
+    min_observations: number;
+    significance_level: number;
+    min_half_life_days: number;
+    max_half_life_days: number;
+  };
+  methodology_note: string;
 }
 
 export interface SpreadResponse {
@@ -46,6 +95,7 @@ export interface SpreadResponse {
   spread_type: string;
   data: SpreadPoint[];
   metrics: SpreadMetrics;
+  pair_model: PairModelValidation;
 }
 
 export interface RiskBreakdownResponse {
@@ -55,10 +105,21 @@ export interface RiskBreakdownResponse {
   baseline_corr: number | null;
   broken: boolean;
   broken_since: string | null;
+  breakdown_reason: "relative" | "absolute" | "relative_and_absolute" | null;
 }
 
 export type SignalLevel = "normal" | "watch" | "signal";
 export type SignalDirection = "long" | "short" | "hold";
+
+export interface TradingSignalSummary {
+  ticker_a: string;
+  ticker_b: string;
+  zscore: number;
+  direction: SignalDirection;
+  window: number;
+}
+
+export const SIGNAL_WINDOW = 60;
 
 export const SECTOR_COLORS: Record<string, string> = {
   Technology: "#8b5cf6",
@@ -74,6 +135,7 @@ export const SECTOR_COLORS: Record<string, string> = {
 export const PAIRS: PairInfo[] = [
   { ticker_a: "MSFT",  ticker_b: "GOOGL", name_a: "Microsoft",         name_b: "Google",            sector: "Technology" },
   { ticker_a: "AMD",   ticker_b: "NVDA",  name_a: "AMD",               name_b: "NVIDIA",            sector: "Technology" },
+  { ticker_a: "DDOG",  ticker_b: "NET",   name_a: "Datadog",           name_b: "Cloudflare",         sector: "Technology" },
   { ticker_a: "CVS",   ticker_b: "JNJ",   name_a: "CVS Health",        name_b: "Johnson & Johnson", sector: "Healthcare" },
   { ticker_a: "PFE",   ticker_b: "MRK",   name_a: "Pfizer",            name_b: "Merck",             sector: "Healthcare" },
   { ticker_a: "CL",    ticker_b: "KMB",   name_a: "Colgate-Palmolive", name_b: "Kimberly-Clark",    sector: "Consumer" },
@@ -88,16 +150,22 @@ export const PAIRS: PairInfo[] = [
   { ticker_a: "WMT",   ticker_b: "TGT",   name_a: "Walmart",           name_b: "Target",            sector: "Retail" },
 ];
 
-export function getSignalLevel(zscore: number): SignalLevel {
+export function getSignalLevel(
+  zscore: number | null | undefined
+): SignalLevel | null {
+  if (zscore == null || !Number.isFinite(zscore)) return null;
   const abs = Math.abs(zscore);
   if (abs >= 2) return "signal";
   if (abs >= 1) return "watch";
   return "normal";
 }
 
-export function getSignalDirection(zscore: number): SignalDirection {
-  if (zscore > 2) return "short";
-  if (zscore < -2) return "long";
+export function getSignalDirection(
+  zscore: number | null | undefined
+): SignalDirection | null {
+  if (zscore == null || !Number.isFinite(zscore)) return null;
+  if (zscore >= 2) return "short";
+  if (zscore <= -2) return "long";
   return "hold";
 }
 

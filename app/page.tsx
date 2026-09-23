@@ -13,6 +13,7 @@ import Toast from "@/components/correlation/Toast";
 import RiskWarningBanner from "@/components/correlation/RiskWarningBanner";
 import BacktestControls, { BacktestParams } from "@/components/correlation/BacktestControls";
 import BacktestResults from "@/components/correlation/BacktestResults";
+import PairExplorerSkeleton from "@/components/correlation/PairExplorerSkeleton";
 
 import type {
   PairInfo,
@@ -21,29 +22,31 @@ import type {
   SpreadResponse,
   SignalLevel,
   BacktestResponse,
+  TradingSignalSummary,
 } from "@/lib/correlationTypes";
-import { getSignalLevel } from "@/lib/correlationTypes";
+import {
+  getSignalDirection,
+  PAIRS,
+  SIGNAL_WINDOW,
+} from "@/lib/correlationTypes";
+import { todayISO, yearsAgoISO } from "@/lib/dateUtils";
 
 const API_BASE = "/api";
-
-function yearsAgo(n: number): string {
-  const d = new Date();
-  d.setFullYear(d.getFullYear() - n);
-  return d.toISOString().split("T")[0];
-}
 
 export default function CorrelationTradingPage() {
   const [selectedPair, setSelectedPair] = useState<PairInfo | null>(null);
   const [dateRange, setDateRange] = useState({
-    start: yearsAgo(3),
-    end: new Date().toISOString().split("T")[0],
+    start: yearsAgoISO(3),
+    end: todayISO(),
   });
-  const [spreadType, setSpreadType] = useState("log_ratio");
   const [loading, setLoading] = useState(false);
   const [corrData, setCorrData] = useState<CorrelationResponse | null>(null);
   const [spreadData, setSpreadData] = useState<SpreadResponse | null>(null);
   const [riskData, setRiskData] = useState<RiskBreakdownResponse | null>(null);
-  const [pairSignals, setPairSignals] = useState<Record<string, SignalLevel>>({});
+  const [pairSignals, setPairSignals] = useState<
+    Record<string, TradingSignalSummary | null>
+  >({});
+  const [loadingPairSignals, setLoadingPairSignals] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [toast, setToast] = useState<{ message: string; type: "error" | "success" } | null>(null);
 
@@ -53,11 +56,13 @@ export default function CorrelationTradingPage() {
 
   const fetchAnalysis = useCallback(
     async (pair: PairInfo) => {
+      const signalKey = `${pair.ticker_a}_${pair.ticker_b}`;
       setLoading(true);
       setError(null);
       setCorrData(null);
       setSpreadData(null);
       setRiskData(null);
+      setPairSignals((prev) => ({ ...prev, [signalKey]: null }));
 
       try {
         const [corrRes, spreadRes, riskRes] = await Promise.all([
@@ -65,7 +70,7 @@ export default function CorrelationTradingPage() {
             `${API_BASE}/correlation?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}`
           ),
           fetch(
-            `${API_BASE}/spread?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}&spread_type=${spreadType}`
+            `${API_BASE}/spread?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&start=${dateRange.start}&end=${dateRange.end}&spread_type=log_ratio&window=${SIGNAL_WINDOW}`
           ),
           fetch(
             `${API_BASE}/risk/breakdown?ticker_a=${pair.ticker_a}&ticker_b=${pair.ticker_b}&end=${dateRange.end}`
@@ -93,12 +98,22 @@ export default function CorrelationTradingPage() {
         setSpreadData(spread);
         setRiskData(risk);
 
-        setPairSignals((prev) => ({
-          ...prev,
-          [`${pair.ticker_a}_${pair.ticker_b}`]: getSignalLevel(
-            spread.metrics.current_zscore
-          ),
-        }));
+        const zscore = spread.metrics.current_zscore;
+        const direction = getSignalDirection(zscore);
+        setPairSignals((prev) => {
+          const next = { ...prev };
+          next[signalKey] =
+            zscore !== null && direction !== null
+              ? {
+                  ticker_a: pair.ticker_a,
+                  ticker_b: pair.ticker_b,
+                  zscore,
+                  direction,
+                  window: spread.metrics.zscore_window,
+                }
+              : null;
+          return next;
+        });
       } catch (e: any) {
         const msg = e.message ?? "Failed to load data";
         setError(msg);
@@ -107,14 +122,59 @@ export default function CorrelationTradingPage() {
         setLoading(false);
       }
     },
-    [dateRange, spreadType]
+    [dateRange]
   );
+
+  useEffect(() => {
+    if (selectedPair) return;
+
+    const controller = new AbortController();
+    setPairSignals({});
+    setLoadingPairSignals(true);
+
+    const loadSignal = async (pair: PairInfo) => {
+      const key = `${pair.ticker_a}_${pair.ticker_b}`;
+      const params = new URLSearchParams({
+        ticker_a: pair.ticker_a,
+        ticker_b: pair.ticker_b,
+        start: dateRange.start,
+        end: dateRange.end,
+        window: String(SIGNAL_WINDOW),
+      });
+
+      try {
+        const response = await fetch(`${API_BASE}/signal?${params}`, {
+          signal: controller.signal,
+        });
+        const payload = await response.json();
+        const signal =
+          response.ok &&
+          typeof payload.zscore === "number" &&
+          Number.isFinite(payload.zscore) &&
+          ["short", "long", "hold"].includes(payload.direction)
+            ? (payload as TradingSignalSummary)
+            : null;
+
+        setPairSignals((prev) => ({ ...prev, [key]: signal }));
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setPairSignals((prev) => ({ ...prev, [key]: null }));
+        }
+      }
+    };
+
+    void Promise.allSettled(PAIRS.map(loadSignal)).finally(() => {
+      if (!controller.signal.aborted) setLoadingPairSignals(false);
+    });
+
+    return () => controller.abort();
+  }, [selectedPair, dateRange]);
 
   useEffect(() => {
     if (selectedPair) {
       fetchAnalysis(selectedPair);
     }
-  }, [selectedPair, dateRange, spreadType, fetchAnalysis]);
+  }, [selectedPair, dateRange, fetchAnalysis]);
 
   const handleSelect = (pair: PairInfo) => {
     setSelectedPair(pair);
@@ -150,6 +210,10 @@ export default function CorrelationTradingPage() {
     }
   };
 
+  if (!selectedPair && loadingPairSignals) {
+    return <PairExplorerSkeleton />;
+  }
+
   return (
     <main className="mx-6 sm:mx-0 min-h-screen bg-black text-neutral-50">
       {toast && (
@@ -160,8 +224,8 @@ export default function CorrelationTradingPage() {
         />
       )}
 
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 min-h-[calc(100vh-80px)]">
-        <AnimatePresence mode="wait">
+      <div className="max-w-6xl mx-auto min-h-[calc(100vh-68px)] px-4 pb-8 sm:px-6">
+        <AnimatePresence initial={false} mode="wait">
           {!selectedPair ? (
             <motion.div
               key="selector"
@@ -174,6 +238,8 @@ export default function CorrelationTradingPage() {
                 onSelect={handleSelect}
                 selectedPair={selectedPair}
                 pairSignals={pairSignals}
+                loadingPairSignals={loadingPairSignals}
+                dateRange={dateRange}
                 onError={(msg) => setToast({ message: msg, type: "error" })}
               />
             </motion.div>
@@ -188,9 +254,7 @@ export default function CorrelationTradingPage() {
               <ControlsBar
                 pair={selectedPair}
                 dateRange={dateRange}
-                spreadType={spreadType}
                 onDateRangeChange={setDateRange}
-                onSpreadTypeChange={setSpreadType}
                 onBack={handleBack}
                 loading={loading}
               />
@@ -214,7 +278,10 @@ export default function CorrelationTradingPage() {
                 <div className="mt-6 space-y-6">
                   {riskData?.broken && <RiskWarningBanner risk={riskData} />}
 
-                  <MetricsPanel metrics={spreadData.metrics} />
+                  <MetricsPanel
+                    metrics={spreadData.metrics}
+                    model={spreadData.pair_model}
+                  />
 
                   {corrData && (
                     <LagCorrelationChart

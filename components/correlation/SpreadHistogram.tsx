@@ -12,6 +12,7 @@ import {
   Cell,
 } from "recharts";
 import { SpreadPoint, SpreadMetrics } from "@/lib/correlationTypes";
+import ChartInfoTooltip from "./ChartInfoTooltip";
 
 interface SpreadHistogramProps {
   data: SpreadPoint[];
@@ -45,12 +46,63 @@ const TOOLTIP_STYLE = {
   borderRadius: "12px",
   backdropFilter: "blur(12px)",
   fontSize: 12,
+  lineHeight: 1.2,
+  padding: "10px 12px",
   color: "#e5e5e5",
+};
+
+const TOOLTIP_LABEL_STYLE = {
+  color: "#f5f5f5",
+  fontWeight: 600,
+  marginBottom: 8,
+};
+
+const TOOLTIP_ROW_STYLE = {
+  color: "#d4d4d4",
+  lineHeight: 1.2,
 };
 
 const AXIS_TICK = { fill: "#737373", fontSize: 10 };
 const AXIS_LINE = { stroke: "rgba(255,255,255,0.06)" };
 const GRID = "rgba(255,255,255,0.04)";
+
+type HistogramTooltipPayload = {
+  value?: number | string | null;
+};
+
+type HistogramTooltipProps = {
+  active?: boolean;
+  label?: string | number;
+  payload?: HistogramTooltipPayload[];
+  labelPrefix: string;
+  precision: number;
+};
+
+function getFiniteNumber(value: unknown): number | null {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function HistogramTooltip({
+  active,
+  label,
+  payload,
+  labelPrefix,
+  precision,
+}: HistogramTooltipProps) {
+  if (!active || !payload?.length) return null;
+
+  const count = getFiniteNumber(payload[0]?.value);
+  if (count === null) return null;
+
+  return (
+    <div style={TOOLTIP_STYLE}>
+      <div style={TOOLTIP_LABEL_STYLE}>
+        {labelPrefix}: {Number(label).toFixed(precision)}
+      </div>
+      <div style={TOOLTIP_ROW_STYLE}>Count: {count}</div>
+    </div>
+  );
+}
 
 export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps) {
   const spreads = data.map((d) => d.spread).filter((v): v is number => v != null);
@@ -59,18 +111,26 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
   const spreadBins = buildBins(spreads, 40);
   const zscoreBins = buildBins(zscores, 40);
 
-  const spreadMean = metrics.mean;
+  const spreadMean = metrics.descriptive_mean;
   const spreadMedian = [...spreads].sort((a, b) => a - b)[Math.floor(spreads.length / 2)] ?? 0;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       {/* Spread Distribution */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Spread Distribution
-        </h3>
+        <div className="mb-1 flex items-start gap-1.5">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Spread Distribution
+          </h3>
+          <ChartInfoTooltip label="Spread Distribution">
+            Shows the spread levels the pair visits most often. A tight single
+            cluster supports a stable range for mean-reversion trades. A wide or
+            multi-peaked shape warns that the relationship is unstable and entry
+            thresholds may be unreliable.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
-          Histogram of spread values with mean and median
+          Descriptive full-period spread values with mean and median
         </p>
         <div className="h-[220px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -85,17 +145,22 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
               />
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                formatter={(value: number) => [value, "Count"]}
-                labelFormatter={(label) => `Value: ${Number(label).toFixed(4)}`}
+                content={
+                  <HistogramTooltip
+                    labelPrefix="Value"
+                    precision={4}
+                  />
+                }
               />
-              <ReferenceLine
-                x={spreadMean}
-                stroke="#ef4444"
-                strokeDasharray="4 4"
-                strokeWidth={1.5}
-                label={{ value: "Mean", position: "top", fill: "#ef4444", fontSize: 10 }}
-              />
+              {spreadMean !== null && (
+                <ReferenceLine
+                  x={spreadMean}
+                  stroke="#ef4444"
+                  strokeDasharray="4 4"
+                  strokeWidth={1.5}
+                  label={{ value: "Mean", position: "top", fill: "#ef4444", fontSize: 10 }}
+                />
+              )}
               <ReferenceLine
                 x={spreadMedian}
                 stroke="#c28b00"
@@ -119,11 +184,19 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
 
       {/* Z-Score Distribution */}
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
-        <h3 className="text-sm font-semibold text-neutral-300 mb-1">
-          Z-Score Distribution
-        </h3>
+        <div className="mb-1 flex items-start gap-1.5">
+          <h3 className="text-sm font-semibold text-neutral-300">
+            Log-Ratio Z-Score Distribution
+          </h3>
+          <ChartInfoTooltip label="Log-Ratio Z-Score Distribution">
+            Shows how often the pair reaches each level of divergence. Small red
+            tails mean ±2 readings are rare and may offer useful entry signals.
+            Large or uneven tails suggest frequent extremes or directional bias,
+            which weakens a simple mean-reversion strategy.
+          </ChartInfoTooltip>
+        </div>
         <p className="text-xs text-neutral-500 mb-4">
-          Histogram of z-score values — tails beyond ±2 highlighted
+          Historical distribution of the z-score used by the trading signal
         </p>
         <div className="h-[220px]">
           <ResponsiveContainer width="100%" height="100%">
@@ -138,9 +211,12 @@ export default function SpreadHistogram({ data, metrics }: SpreadHistogramProps)
               />
               <YAxis tick={AXIS_TICK} axisLine={AXIS_LINE} tickLine={false} />
               <Tooltip
-                contentStyle={TOOLTIP_STYLE}
-                formatter={(value: number) => [value, "Count"]}
-                labelFormatter={(label) => `Z-Score: ${Number(label).toFixed(2)}`}
+                content={
+                  <HistogramTooltip
+                    labelPrefix="Z-Score"
+                    precision={2}
+                  />
+                }
               />
               <ReferenceLine
                 x={2}
