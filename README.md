@@ -1,183 +1,200 @@
 # Correlation Trading
 
-Wat Street research app for finding unusual moves between related stocks. It
-supports two different kinds of analysis: a two-stock **Pair Explorer** and a
-multi-stock **Strategy Lab**.
+Wat Street research application for studying relative-value relationships
+between public stocks. It now includes two connected workflows:
 
-> **Current status:** The Pair Explorer interface is available on `main`. The
-> Strategy Lab market-data and scanner APIs are also on `main`, but the
-> walk-forward backtester and visible Strategy Lab pages are still in progress
-> in PRs [#28](https://github.com/Wat-Street/correlation-trading/pull/28) and
-> [#29](https://github.com/Wat-Street/correlation-trading/pull/29).
+- **Pair Explorer** for investigating one two-stock relationship in detail.
+- **Strategy Lab (Beta)** for scanning groups of related stocks and
+  walk-forward testing peer-basket strategies.
 
-## Pair Selector, Pair Explorer, and Strategy Lab
+This is a research and education tool. It does not place trades or provide
+investment advice.
 
-The **Pair Selector** is the first screen of the Pair Explorer. It lets you pick
-one of 15 prepared pairs or enter two custom stock symbols. It is not a separate
-trading model.
+## Features
 
-| | Pair Explorer | Strategy Lab |
+### Pair Selector and Pair Explorer
+
+The Pair Selector is the landing screen for Pair Explorer. It lets you:
+
+- Browse 15 predefined pairs grouped by sector.
+- See each predefined pair's current Long, Short, Hold, or Unavailable signal.
+- Enter and validate any two custom Yahoo Finance ticker symbols.
+- Reject pairs without enough overlapping data for a 60-session signal.
+
+After selecting a pair, Pair Explorer provides:
+
+- Lagged Pearson correlation of daily log returns.
+- A correlation-breakdown warning with the current value, historical baseline,
+  reason, and first detected date.
+- Adjusted normalized-price and log-ratio spread charts.
+- Rolling 60-session mean, standard deviation, and z-score.
+- Long, Short, or Hold direction from the current log-ratio z-score.
+- Spread and z-score distributions.
+- Advisory pair-model diagnostics: hedge ratio, cointegration, residual
+  stationarity, AR(1) behavior, half-life, and rejection reasons.
+
+The pair-model checks add context but do not suppress an otherwise calculable
+Pair Explorer signal. Pair Explorer is a current-snapshot diagnostic, not a
+historical portfolio backtest.
+
+### Strategy Lab (Beta)
+
+Strategy Lab works with a group rather than a single pair. It lets you:
+
+- Start from curated industry peer groups or edit a universe of 4-8 tickers.
+- Model each stock against a basket made from the other 3-7 stocks.
+- Rank candidates by residual z-score and show model quality and cautions.
+- Inspect the peer weights and hedge beta behind each candidate.
+- Open a dedicated candidate page with the current research signal.
+- Preserve the selected group, universe, and dates in navigation links.
+
+Each candidate page runs a walk-forward simulation that:
+
+- Fits using historical data available at each signal date.
+- Refits every 21 sessions and executes a close signal at the next adjusted
+  open.
+- Uses fixed entry, exit, stop, and maximum-holding rules.
+- Includes transaction costs, short-borrow costs, and a recent-volume capacity
+  limit.
+- Reports an equity curve, target benchmark, drawdown, trade ledger, turnover,
+  win rate, costs, and the final 30% holdout period.
+- Displays 126-, 252-, and 504-session sensitivity results without selecting
+  whichever window happened to perform best.
+
+### Pair Selector vs. Strategy Lab
+
+| | Pair Selector / Pair Explorer | Strategy Lab |
 |---|---|---|
-| Main question | Are these two stocks moving differently from normal? | Is one stock moving differently from a group of similar stocks? |
-| Stocks compared | Exactly 2 | 1 target stock against 3-7 peers |
-| Comparison | Direct price relationship between the pair | Weighted peer basket built by the model |
-| Main signal | 60-day log-ratio z-score | 252-day peer-residual z-score |
-| Output | Long, Short, or Hold for the pair | Long Target, Short Target, or Hold, plus peer weights |
-| Availability | Complete interface on `main` | Scanner API on `main`; backtester and interface still in progress |
+| Main question | How are these two stocks behaving relative to each other now? | Which stock in this related group is unusual versus its peers, and how would the rule have performed historically? |
+| Input | Exactly two tickers | An editable universe of 4-8 tickers |
+| Comparison | Stock A versus Stock B | Each target versus a weighted basket of the remaining peers |
+| Signal | Fixed 60-session log-ratio z-score | Peer-residual z-score with fixed +/-2 entry bands |
+| Model diagnostics | Pair hedge ratio, cointegration, ADF, AR(1), and half-life | Constrained peer weights, hedge beta, ADF, fit, concentration, and half-life |
+| Historical simulation | No | Yes: walk-forward backtest with next-open execution and costs |
+| Best use | Inspecting a known pair | Discovering and testing candidates across a related group |
 
-Example: Pair Explorer compares MSFT directly with GOOGL. Strategy Lab can
-compare MSFT with a basket made from GOOGL, META, and AMZN, then measure the
-part of MSFT's move that those peers do not explain.
+The Pair Selector is therefore not a smaller version of Strategy Lab. It is
+the entry screen for a two-stock diagnostic workflow; Strategy Lab is a
+multi-stock scanner and backtester.
 
-## Features Available on `main`
+## Market Data and Research Safeguards
 
-### Pair Explorer
+- Market data comes from Yahoo Finance through yfinance.
+- Analysis uses adjusted OHLC prices. Raw OHLC, reported volume, dividends,
+  splits, and available capital-gains actions are retained for auditing.
+- Pair and universe data are inner-aligned so every calculation uses dates
+  shared by all required tickers.
+- Strategy signals use past rows only and execute on the following adjusted
+  open to avoid same-close execution look-ahead.
+- Transaction costs, annualized short-borrow costs, and a 1% share of recent
+  median dollar volume are included by default.
+- Structured validation rejects missing, stale, non-finite, duplicate, or
+  insufficient market data.
 
-- 15 prepared stock pairs across technology, healthcare, consumer, industrial,
-  financial, energy, telecom, and retail groups
-- Custom pair entry with ticker validation and duplicate-pair protection
-- Long, Short, or Hold labels on the pair cards
-- Adjustable research dates with correctly aligned trading sessions
-- Lagged Pearson correlation of daily log returns
-- Normalized price, log-ratio spread, rolling mean, one- and two-standard-
-  deviation bands, z-score, and spread-distribution charts
-- A correlation-breakdown warning when a previously related pair weakens
-- Advisory pair-model diagnostics: hedge ratio, cointegration, stationarity,
-  mean-reversion half-life, observation count, and clear caution reasons
-- Plain-language explanations beside charts, signals, and model values
+Important limitations remain:
 
-### Strategy Lab foundation
-
-- Adjusted daily Open, High, Low, Close, and Volume data, with raw prices and
-  corporate actions retained for auditing
-- One aligned data load for an entire peer group instead of repeated pair loads
-- 12 editable peer-universe presets, including platforms, semiconductors,
-  cloud software, pharma, banks, payments, energy, and telecom
-- A sector scanner that accepts 4-8 stocks and evaluates every stock as the
-  target against the remaining peers
-- Nonnegative peer weights that sum to 100%, with no peer above 60%
-- Hedge beta, residual z-score, Long/Short/Hold research direction, model-
-  quality label, stationarity checks, half-life, fit, and concentration cautions
-- Candidate ranking by the size of each stock's peer-relative move
-- Structured validation errors for invalid tickers, dates, universes, or data
-
-The scanner backend is usable through `GET /api/strategy/universes` and
-`POST /api/strategy/scan`. The Strategy Lab screen and historical backtester
-are not part of `main` yet.
-
-### Data and reliability
-
-- Split- and dividend-adjusted research prices so corporate actions do not look
-  like trading signals
-- Raw OHLC prices, adjusted OHLC prices, volume, dividends, and stock splits in
-  the versioned v5 cache
-- Validation for dates, duplicate sessions, prices, volume, requested coverage,
-  and stale data
-- Node.js 20.20.2, an audit-clean frontend lockfile, frontend builds, dependency
-  audits, and backend analysis tests in CI
-
-## Plain-English Terms
-
-- **Correlation:** how similarly two return series move. It does not prove that
-  one stock causes the other to move.
-- **Spread:** a number representing the gap between two stocks or between a
-  target stock and its peer basket.
-- **Z-score:** how unusual the current spread is compared with its recent
-  history. `+2` means about two standard deviations above its average; `-2`
-  means about two below.
-- **OHLCV:** Open, High, Low, Close, and Volume for each trading day.
-- **Universe:** the list of stocks a strategy is allowed to compare.
-
-The app is split into:
-
-- Next.js frontend at the repo root
-- Flask API in `correlation-api/`
-- Shared frontend types in `lib/correlationTypes.ts` and `lib/strategyTypes.ts`
-
-## Research Experiences
-
-- **Pair Explorer** shows lagged return correlation, normalized performance,
-  spread behavior, rolling z-scores, and directional pair signals.
-- **Strategy Lab** scans editable peer groups, estimates a target stock's
-  residual relative to a constrained peer basket, and reports Long, Short, or
-  Hold research signals.
-- **Strategy backtests** refit the model using past data only, execute on the
-  next adjusted open, charge transaction and borrow costs, enforce a liquidity
-  cap, and report both full-history and recent-holdout results.
-
-The Strategy Lab is statistical-arbitrage research, not risk-free arbitrage or
-investment advice. A signal can fail to mean-revert, and a positive historical
-result does not guarantee future profit.
+- Yahoo can revise historical adjusted prices when its corporate-action history
+  changes, so adjusted prices are research-grade rather than immutable
+  point-in-time execution records.
+- Curated peer membership reflects today's editable universes and can introduce
+  survivorship bias.
+- The app does not model intraday liquidity, bid/ask spreads, taxes, broker
+  margin rules, or live order execution.
+- Statistical relationships and backtest results do not guarantee future
+  mean reversion or profit.
 
 ## Architecture
 
-```text
+~~~text
 Browser -> Next.js frontend -> /api/* rewrite -> Flask API -> yfinance
-```
+~~~
 
-The frontend calls `/api/*`. `next.config.mjs` rewrites those requests to the Flask API URL configured by `CORRELATION_API_URL` or `CORRELATION_API_HOST`, falling back to `http://localhost:5050` for local development.
+- Next.js 16 frontend at the repository root.
+- Flask analysis API in correlation-api/.
+- Shared frontend contracts in lib/correlationTypes.ts and
+  lib/strategyTypes.ts.
+- Versioned market-data cache under correlation-api/data/raw/ (gitignored).
+
+next.config.mjs rewrites browser requests under /api/* to the Flask API
+configured by CORRELATION_API_URL or CORRELATION_API_HOST. Local development
+defaults to http://localhost:5050.
+
+The main API surfaces are:
+
+| Workflow | Endpoints |
+|---|---|
+| Pair Explorer | /api/pairs, /api/validate, /api/correlation, /api/spread, /api/signal, /api/risk/breakdown |
+| Strategy Lab | /api/strategy/universes, /api/strategy/scan, /api/strategy/backtest |
+
+See [the API README](correlation-api/README.md) for endpoint contracts, model
+rules, data fields, and cache behavior.
 
 ## Running Locally
 
-Use Node.js 20.20.2 for the frontend. Version managers such as `nvm`, `fnm`,
-and `asdf` will pick up the checked-in runtime version files automatically.
+Requirements:
 
-Run the frontend and API in two terminals.
+- Node.js 20.20.2 (the checked-in version files configure common version
+  managers).
+- Python 3.12.
 
-### Terminal 1: Frontend
+Run the API and frontend in separate terminals.
 
-```bash
+### Terminal 1: API
+
+~~~bash
+cd correlation-api
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python app.py
+~~~
+
+The API runs at [http://localhost:5050](http://localhost:5050). Check it with:
+
+~~~bash
+curl http://localhost:5050/api/pairs
+~~~
+
+### Terminal 2: Frontend
+
+~~~bash
 npm ci
 npm run dev
-```
+~~~
 
-The frontend runs at `http://localhost:3000`.
+Open [http://localhost:3000](http://localhost:3000). Use the top navigation to
+switch between Pair Explorer and Strategy Lab.
 
-### Terminal 2: API
+## Validation
 
-```bash
-cd correlation-api
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
-python app.py
-```
+Frontend:
 
-The API runs at `http://localhost:5050`. Health check:
-
-```bash
-curl http://localhost:5050/api/pairs
-```
-
-Run the automated checks with:
-
-```bash
+~~~bash
+npm audit --audit-level=moderate
 npm run lint
 npm run build
-cd correlation-api && python -m unittest discover -v
-```
+~~~
 
-## Research Limitations
+Backend:
 
-- Signals describe historical relationships; they do not guarantee that a
-  spread will return to its average or that a trade will make money.
-- Yahoo Finance is useful for prototypes but can revise historical data and
-  does not provide execution-quality quotes or verified borrow availability.
-- The Strategy Lab presets use today's peer lists, so historical results can
-  contain survivorship bias.
-- This project is for research and education, not investment advice.
+~~~bash
+cd correlation-api
+python -m unittest discover -v
+~~~
+
+The backend test suite mocks market-data downloads and does not require network
+access.
 
 ## Deployment
 
-The included `render.yaml` defines two Render services:
+render.yaml defines two Render services:
 
-- `correlation-trading`: Next.js frontend
-- `correlation-api`: Flask API
+- correlation-trading: Next.js frontend.
+- correlation-api: Flask API.
 
-Render wires the frontend to the API with `CORRELATION_API_HOST`, using the API service's generated hostname.
+Render deploys from main after checks pass and connects the frontend through
+CORRELATION_API_HOST. For a separately hosted API, set:
 
-If deploying the frontend separately from the API, set:
-
-```text
+~~~text
 CORRELATION_API_URL=<deployed Flask API URL>
-```
+~~~
