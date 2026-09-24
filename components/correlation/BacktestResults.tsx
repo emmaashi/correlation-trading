@@ -119,8 +119,8 @@ export default function BacktestResults({ data }: BacktestResultsProps) {
                   <th className="px-4 py-2">Entry Date</th>
                   <th className="px-4 py-2">Exit Date</th>
                   <th className="px-4 py-2">Days</th>
-                  <th className="px-4 py-2">Entry Z/Spread</th>
-                  <th className="px-4 py-2">Exit Z/Spread</th>
+                  <th className="px-4 py-2">Entry Spread</th>
+                  <th className="px-4 py-2">Exit Spread</th>
                   <th className="px-4 py-2 text-right rounded-tr-lg">P&L</th>
                 </tr>
               </thead>

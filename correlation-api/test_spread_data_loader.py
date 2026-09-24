@@ -111,7 +111,7 @@ class TestSpreadDataLoader(unittest.TestCase):
         with patch("app.load_pair_data", return_value=mock_df):
             with app.test_client() as client:
                 response = client.get(
-                    f"/api/spread?ticker_a=AAA&ticker_b=BBB&window={window}&spread_type=log_ratio"
+                    f"/api/spread?ticker_a=AAA&ticker_b=BBB&window={window}&spread_type=log_ratio&start=2020-01-01"
                 )
 
         self.assertEqual(response.status_code, 200)
