@@ -428,15 +428,13 @@ def get_spread():
         window = _parse_integer_arg(
             "window", default=DEFAULT_SIGNAL_WINDOW, minimum=2
         )
-        df = load_pair_data(ticker_a, ticker_b, start, end)
+        requested_start = pd.Timestamp(start)
+        warmup_days = int(window * 2 + 10)
+        warmup_start = (requested_start - pd.Timedelta(days=warmup_days)).strftime("%Y-%m-%d")
+
+        df = load_pair_data(ticker_a, ticker_b, warmup_start, end)
         df = _valid_pair_rows(df, ticker_a, ticker_b)
-        if len(df) < window:
-            raise ValueError(
-                "At least "
-                f"{window} overlapping observations are required "
-                f"for window={window}; "
-                f"received {len(df)}"
-            )
+
         spread_df, metrics = calculate_spread_metrics(
             df,
             ticker_a,
@@ -444,6 +442,25 @@ def get_spread():
             spread_type=spread_type,
             window=window,
         )
+
+        spread_df['Date'] = pd.to_datetime(spread_df['Date'])
+        valid_idx = spread_df['Date'] >= requested_start
+        spread_df = spread_df[valid_idx].reset_index(drop=True)
+        
+        if len(spread_df) == 0:
+            raise ValueError("No data available in the requested date range.")
+            
+        clean_spread = spread_df['spread'].dropna()
+        def finite_value(value):
+            if pd.isna(value): return None
+            val = float(value)
+            return val if math.isfinite(val) else None
+            
+        metrics['num_observations'] = len(clean_spread)
+        metrics['descriptive_mean'] = finite_value(clean_spread.mean())
+        metrics['descriptive_std'] = finite_value(clean_spread.std())
+        metrics['descriptive_min'] = finite_value(clean_spread.min())
+        metrics['descriptive_max'] = finite_value(clean_spread.max())
 
         price_a = spread_df[f"{ticker_a}_price"]
         price_b = spread_df[f"{ticker_b}_price"]
