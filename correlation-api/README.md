@@ -1,6 +1,8 @@
 # Correlation Trading API
 
-Flask backend powering the **Correlation Trading** app. Computes lagged correlation and spread metrics for stock pairs on demand, using Yahoo Finance data fetched via `yfinance`.
+Flask backend powering the **Correlation Trading** app. It computes pair
+correlation and spread metrics, model diagnostics, risk warnings, and
+peer-basket scanner results from Yahoo Finance data fetched through `yfinance`.
 
 ## Run
 
@@ -28,9 +30,11 @@ The suite mocks market-data downloads and does not require network access.
 
 ## Endpoints
 
-| Method | Path | Query | Returns |
+| Method | Path | Inputs | Returns |
 |--------|------|-------|---------|
 | GET | `/api/pairs` | — | The 15 pre-configured pairs (tickers, names, sector) |
+| GET | `/api/strategy/universes` | — | The 12 editable peer-group presets and supported universe size |
+| POST | `/api/strategy/scan` | JSON body with `tickers`, optional `start`, optional `end` | Every ticker ranked as a target against the remaining peer basket |
 | GET | `/api/validate` | `ticker` | `{valid, ticker, name}` — used to validate custom ticker input |
 | GET | `/api/correlation` | `ticker_a`, `ticker_b`, `start`, `end`, `max_lag` | Lagged Pearson correlation of daily log returns across `[-max_lag, +max_lag]` |
 | GET | `/api/spread` | `ticker_a`, `ticker_b`, `start`, `end`, `spread_type`, `window` | Descriptive spread series plus current pair-model eligibility and residual signal diagnostics |
@@ -42,33 +46,24 @@ The suite mocks market-data downloads and does not require network access.
 
 Dates are `YYYY-MM-DD`. `spread_type` is one of the values supported by `analysis/spread.py` (default `log_ratio`).
 
-## Peer-basket Strategy Lab
+## Strategy scanner
 
-For every target in a peer group, the scanner models adjusted daily log returns
-against the remaining 3-7 stocks. The constrained ridge fit uses non-negative
-peer weights that sum to one, caps each weight at 60%, and reports the fitted
-beta separately as the basket hedge size. The accumulated return residual is
-standardized with an AR(1)/OU equilibrium estimate when valid and an empirical
-fallback when the model is weak.
+The Strategy Lab scanner accepts 4-8 unique ticker strings. For each ticker, it
+uses the other 3-7 stocks as a peer basket and fits the latest 252 daily returns.
+Peer weights are nonnegative, sum to one after normalization, and are capped at
+60% each. The response includes:
 
-Signals use fixed, predeclared rules: z-score at or below -2 is Long Target / Short
-Peers, z-score at or above 2 is Short Target / Long Peers, and the interval
-between is Hold. ADF results, half-life, fit, concentration, and data cautions
-remain visible and advisory; they never hide an otherwise calculable signal.
+- Long Target, Short Target, or Hold based on a residual z-score threshold of
+  `-2` or `+2`
+- Hedge beta and normalized peer weights
+- R-squared, ADF p-value, AR(1) coefficient, and estimated half-life
+- Strong, moderate, or weak model quality plus specific cautions
+- Observation dates, data-quality warnings, and survivorship-bias disclosure
 
-The backtest refits every 21 sessions using only prior data. A close signal is
-filled at the next adjusted open, exits inside +/-0.5, stops outside +/-4, and
-times out after three estimated half-lives clamped to 5-60 sessions. Defaults
-are $100,000 initial capital, 1.0x gross exposure, 5 bps per dollar traded, 3%
-annualized short borrow, and a 1% share of 20-day median dollar volume. It
-reports the full walk-forward history and final 30% holdout separately. The
-126, 252, and 504-session formation windows are all shown rather than selecting
-the best result.
-
-Strategy endpoints require at least 504 overlapping sessions, reject stale or
-invalid data with structured 400 responses, limit groups to eight stocks, and
-limit backtests to ten years. These outputs are research evidence, not a profit
-guarantee or a live execution system.
+The endpoint ranks candidates by absolute residual z-score. Diagnostics remain
+advisory: a weak model can still return a directional research signal with
+cautions. The visible Strategy Lab and walk-forward backtester are not on
+`main` yet.
 
 ## Pair-model diagnostics
 
@@ -107,13 +102,20 @@ reversion or trading performance.
 ## How data is pulled
 
 1. **Browser request** lands on the Flask endpoint (e.g. `/api/correlation?ticker_a=MSFT&ticker_b=GOOGL&start=2023-01-01&end=2026-01-01`).
-2. **`load_pair_data`** (`analysis/data_loader.py`) fetches each ticker via `get_stock_data`, then inner-joins on `Date`.
+2. **`load_pair_data`** delegates to `load_universe_data`, which fetches every
+   unique ticker once and inner-joins all rows on `Date`.
 3. **`get_stock_data`** is the cache layer:
    - Looks for `data/raw/<TICKER>_<start>_to_<end>_<VERSION>_raw.csv` — if present and valid, reads it and returns immediately.
-   - Otherwise calls `yfinance.download` with `auto_adjust=False` and `actions=True`. This preserves Yahoo's adjusted close, raw close, and available action data in one response.
+   - Otherwise calls `yfinance.download` with `auto_adjust=False` and
+     `actions=True`. This preserves raw OHLCV, adjusted close, and available
+     corporate-action data in one response.
    - Rejects downloads without `Adj Close`; research prices never silently fall back to raw close.
-   - Validates the requested date range, row dates, prices, and action values before writing the CSV.
-4. **Analysis modules** (`correlation.py`, `spread.py`) consume the merged DataFrame and produce the JSON the frontend renders.
+   - Uses `Adj Close / RawClose` as the daily adjustment factor for adjusted
+     Open, High, and Low prices.
+   - Validates the requested date range, row dates, OHLC prices, volume, and
+     action values before writing the CSV.
+4. **Analysis modules** consume the aligned DataFrame and produce pair metrics,
+   risk warnings, model diagnostics, or peer-basket scanner results.
 
 ### Market data contract
 
@@ -122,19 +124,30 @@ reversion or trading performance.
 | Column | Meaning |
 |--------|---------|
 | `Date` | Unique, ascending, timezone-naive trading date |
-| `Open`, `High`, `Low`, `Close` | Adjusted OHLC, used for signals and next-open strategy simulation |
-| `RawOpen`, `RawHigh`, `RawLow`, `RawClose` | Yahoo unadjusted OHLC, retained for auditing the adjustment factor |
-| `Volume` | Reported daily share volume, used for the simulation's capacity limit |
+| `Open`, `High`, `Low` | Raw Yahoo OHLC multiplied by the daily close-adjustment factor |
+| `Close` | Yahoo `Adj Close`, used by research return and spread calculations |
+| `RawOpen`, `RawHigh`, `RawLow`, `RawClose` | Yahoo unadjusted OHLC, retained for auditing and execution research |
+| `Volume` | Yahoo daily share volume |
 | `Dividends` | Cash dividend action amount reported by Yahoo; zero on other rows |
 | `StockSplits` | Split ratio reported by Yahoo; zero on other rows |
 | `CapitalGains` | Capital-gains distribution when Yahoo supplies it, mainly for funds |
 | `Ticker` | Uppercase ticker symbol |
 
-Both price columns must be finite and strictly positive. Action columns must be finite and non-negative. Pair data suffixes every non-date field with its ticker, so consumers continue to use `Close_<TICKER>` while raw and action fields remain available as `RawClose_<TICKER>`, `Dividends_<TICKER>`, and so on.
+All price columns must be finite and strictly positive. Volume and action
+columns must be finite and non-negative. Aligned data suffixes every non-date
+field with its ticker, such as `Close_MSFT`, `Open_MSFT`, and `Volume_MSFT`.
 
-The cache key is the **exact** `(ticker, start, end)` tuple, so different date ranges produce different files. Cache schema `v5` is required; older files do not contain the complete adjusted OHLCV contract and are not reused. Cache files live under `correlation-api/data/raw/` and are gitignored. Delete them anytime to force a fresh fetch.
+The cache key is the **exact** `(ticker, start, end)` tuple, so different date
+ranges produce different files. Cache schema `v5` is required. Older cache
+files do not contain the complete adjusted and raw OHLCV contract and are not
+reused. Cache files live under `correlation-api/data/raw/` and are gitignored.
+Delete them anytime to force a fresh fetch.
 
-Yahoo's adjusted close reflects its current split and distribution history, which Yahoo can revise. It is appropriate for historical research but is not a point-in-time execution price. `RawClose` and the action columns preserve inputs needed for a future daily execution model, but they do not provide intraday prices, publication timestamps, fees, slippage, or survivorship-bias controls.
+Yahoo's adjusted prices reflect its current split and distribution history,
+which Yahoo can revise. They are appropriate for historical research but are
+not point-in-time execution prices. Raw prices and action columns improve
+auditability but do not provide intraday quotes, publication timestamps, fees,
+slippage, verified borrow availability, or survivorship-bias controls.
 
 ```
 correlation-api/
@@ -143,10 +156,10 @@ correlation-api/
 │   ├── data_loader.py        # yfinance fetch + CSV cache
 │   ├── correlation.py        # Lagged Pearson correlation of log returns
 │   ├── pair_model.py         # Cointegration and mean-reversion quality gate
-│   ├── peer_basket.py        # Constrained peer model, diagnostics, and scanner
-│   ├── strategy_backtest.py  # Walk-forward execution and portfolio ledger
-│   ├── universes.py          # Versioned editable peer presets
-│   └── spread.py             # Spread series, rolling z-score, metrics
+│   ├── peer_basket.py        # Peer-basket weights, residual signal, diagnostics
+│   ├── risk.py               # Correlation-breakdown warnings
+│   ├── spread.py             # Spread series, rolling z-score, metrics
+│   └── universes.py          # Editable Strategy Lab peer groups
 ├── data/raw/                 # CSV cache (gitignored)
 └── requirements.txt
 ```

@@ -82,6 +82,22 @@ export default function MetricsPanel({ metrics, model }: MetricsPanelProps) {
               {zscore === null ? "N/A" : zscore.toFixed(3)}
             </span>
           </div>
+
+          <Divider />
+
+          <div className="flex items-center gap-1.5 px-2">
+            <span className="text-[10px] uppercase tracking-widest text-neutral-500">
+              OBS
+            </span>
+            <ChartInfoTooltip label="Observations">
+              Observations are aligned trading days with valid prices for both
+              stocks in the selected date range. This is the full sample size;
+              60D metrics use only the most recent 60 observations.
+            </ChartInfoTooltip>
+            <span className="font-mono text-sm tabular-nums text-neutral-300">
+              {metrics.num_observations.toLocaleString()}
+            </span>
+          </div>
         </div>
 
         <PairModelPanel model={model} />

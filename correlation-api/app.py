@@ -23,6 +23,7 @@ from analysis.strategy_backtest import (
     DEFAULT_TRANSACTION_COST_BPS,
     run_strategy_analysis,
 )
+from analysis.backtest import generate_zscore_signals, run_backtest
 
 app = Flask(__name__)
 CORS(app)
@@ -563,6 +564,89 @@ def get_risk_breakdown():
         return jsonify({"error": str(e)}), 400
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/backtest", methods=["GET"])
+def get_backtest():
+    ticker_a = request.args.get("ticker_a", "").upper()
+    ticker_b = request.args.get("ticker_b", "").upper()
+    start = request.args.get("start", "2020-01-01")
+    end = request.args.get("end", str(date.today()))
+    spread_type = request.args.get("spread_type", "log_ratio")
+
+    if not ticker_a or not ticker_b:
+        return jsonify({"error": "ticker_a and ticker_b are required"}), 400
+
+    try:
+        window = int(request.args.get("window", "60"))  # 20-day rolling window
+        entry_z = float(request.args.get("entry_z", "2.0"))  # z-score entry threshold
+        exit_z = float(request.args.get("exit_z", "0.0"))  # z-score exit threshold
+        hedge_ratio = float(request.args.get("hedge_ratio", "1.0")) 
+    except ValueError:
+        return jsonify({"error": "Invalid numerical parameters"}), 400
+
+    try:
+        requested_start = pd.Timestamp(start)
+        # Pad by enough calendar days to ensure we have 'window' number of trading days
+        warmup_days = int(window * 2 + 10)
+        warmup_start = (requested_start - pd.Timedelta(days=warmup_days)).strftime("%Y-%m-%d")
+        df = load_pair_data(ticker_a, ticker_b, warmup_start, end)
+        if len(df) == 0:
+            return jsonify({"error": "No data found for the given tickers and date range"}), 400
+
+        # Sanitize yfinance data by forward-filling and dropping any remaining NaNs
+        df = df.ffill().dropna()
+
+        df = df[pd.to_datetime(df["Date"]) >= pd.Timestamp(warmup_start)].copy()
+        df = df[pd.to_datetime(df["Date"]) < pd.Timestamp(end) + pd.Timedelta(days=1)].copy()
+
+        spread_df, _ = calculate_spread_metrics(df, ticker_a, ticker_b, spread_type, hedge_ratio=hedge_ratio, window=window)
+        
+        spread_df = spread_df.set_index(pd.to_datetime(spread_df["Date"]))
+
+        prices_a = spread_df[f"{ticker_a}_price"]
+        prices_b = spread_df[f"{ticker_b}_price"]
+        spread_series = spread_df["spread"]
+
+        # Generate rolling z-score and walk-forward signals ON THE PADDED DATA
+        signals, rolling_zscore = generate_zscore_signals(
+            spread_series,
+            window=window,
+            entry_z=entry_z,
+            exit_z=exit_z
+        )
+
+        # Now truncate everything to the valid requested start date
+        valid_start = pd.Timestamp(requested_start)
+        valid_idx = spread_df.index >= valid_start
+        prices_a = prices_a[valid_idx]
+        prices_b = prices_b[valid_idx]
+        signals = signals[valid_idx]
+
+        # Run backtest
+        results = run_backtest(prices_a, prices_b, signals, hedge_ratio)
+
+        tearsheet = {
+            "ticker_a": ticker_a,
+            "ticker_b": ticker_b,
+            "window": window,
+            "entry_z": entry_z,
+            "exit_z": exit_z,
+            "hedge_ratio": hedge_ratio,
+            "spread_type": spread_type,
+            "metrics": {
+                "sharpe": _safe_float(results["sharpe"]),
+                "max_drawdown": _safe_float(results["max_dd"]),
+                "num_trades": int(results["num_trades"]),
+                "win_rate": _safe_float(results["win_rate"]),
+            },
+            "equity_curve": results["equity_curve"],
+            "trade_log": results["trade_log"]
+        }
+
+        return jsonify(tearsheet)
+    except Exception:
+        return jsonify({"error": "Backtest request failed"}), 500
 
 
 if __name__ == "__main__":
