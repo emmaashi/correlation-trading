@@ -135,12 +135,14 @@ function Metric({ label, value, help }: { label: string; value: string; help: st
 
 function DatePickerField({
   label,
+  help,
   value,
   min,
   max,
   onChange,
 }: {
   label: string;
+  help: string;
   value: string;
   min?: string;
   max?: string;
@@ -153,7 +155,10 @@ function DatePickerField({
 
   return (
     <div className="block">
-      <span className="mb-1 block text-[10px] uppercase text-neutral-600">{label}</span>
+      <div className="mb-1 flex items-center gap-0.5">
+        <span className="text-[10px] uppercase text-neutral-600">{label}</span>
+        <ChartInfoTooltip label={`${label} date`}>{help}</ChartInfoTooltip>
+      </div>
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger asChild>
           <button
@@ -482,6 +487,7 @@ export default function StrategyLab({ initialState }: { initialState?: StrategyL
         <div className="mt-3 flex flex-wrap items-end gap-3">
           <DatePickerField
             label="Start"
+            help="The earliest market-data date available to the model. Strategy Lab first needs enough trading sessions to build its formation window, so its first signal or trade will occur later than this date."
             value={dateRange.start}
             max={dateRange.end}
             onChange={(start) => {
@@ -491,6 +497,7 @@ export default function StrategyLab({ initialState }: { initialState?: StrategyL
           />
           <DatePickerField
             label="End"
+            help="The last market-data date included in the scan and backtest. It is the historical research cutoff, not the date when a planned trade must be closed."
             value={dateRange.end}
             min={dateRange.start}
             max={DEFAULT_END}
