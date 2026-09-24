@@ -92,7 +92,22 @@ The app is split into:
 
 - Next.js frontend at the repo root
 - Flask API in `correlation-api/`
-- Shared frontend types in `lib/correlationTypes.ts`
+- Shared frontend types in `lib/correlationTypes.ts` and `lib/strategyTypes.ts`
+
+## Research Experiences
+
+- **Pair Explorer** shows lagged return correlation, normalized performance,
+  spread behavior, rolling z-scores, and directional pair signals.
+- **Strategy Lab** scans editable peer groups, estimates a target stock's
+  residual relative to a constrained peer basket, and reports Long, Short, or
+  Hold research signals.
+- **Strategy backtests** refit the model using past data only, execute on the
+  next adjusted open, charge transaction and borrow costs, enforce a liquidity
+  cap, and report both full-history and recent-holdout results.
+
+The Strategy Lab is statistical-arbitrage research, not risk-free arbitrage or
+investment advice. A signal can fail to mean-revert, and a positive historical
+result does not guarantee future profit.
 
 ## Architecture
 

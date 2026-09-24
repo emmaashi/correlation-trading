@@ -40,6 +40,9 @@ The suite mocks market-data downloads and does not require network access.
 | GET | `/api/spread` | `ticker_a`, `ticker_b`, `start`, `end`, `spread_type`, `window` | Descriptive spread series plus current pair-model eligibility and residual signal diagnostics |
 | GET | `/api/signal` | `ticker_a`, `ticker_b`, `start`, `end`, `window` | Compact log-ratio z-score and Short, Long, or Hold direction for pair cards |
 | GET | `/api/risk/breakdown` | `ticker_a`, `ticker_b`, optional `end`, optional `start` override | Return-correlation breakdown signal with its own lookback window, current 60d correlation, baseline, reason, and `broken_since` |
+| GET | `/api/strategy/universes` | - | Versioned, editable peer-group presets and research caveats |
+| POST | `/api/strategy/scan` | JSON peer group, `start`, and `end` | Ranked target signals, diagnostics, peer weights, and data warnings |
+| POST | `/api/strategy/backtest` | JSON target, peers, dates, and optional strategy config | Current signal, walk-forward curves, metrics, trades, costs, holdout results, and 126/252/504-session sensitivity runs |
 
 Dates are `YYYY-MM-DD`. `spread_type` is one of the values supported by `analysis/spread.py` (default `log_ratio`).
 

@@ -11,21 +11,21 @@ def _safe_divisor(divisor, tol=1e-12):
     return divisor.where(divisor.abs() >= tol, np.nan)
 
 
-def calculate_price_difference_spread(series_a: pd.Series, series_b: pd.Series) -> pd.Series:
+def calculate_price_difference_spread(series_a: pd.Series, series_b: pd.Series, hedge_ratio: float = 1.0) -> pd.Series:
     """Calculate simple price difference spread."""
-    return series_a - series_b
+    return series_a - hedge_ratio * series_b
 
 
-def calculate_ratio_spread(series_a: pd.Series, series_b: pd.Series) -> pd.Series:
+def calculate_ratio_spread(series_a: pd.Series, series_b: pd.Series, hedge_ratio: float = 1.0) -> pd.Series:
     """Calculate price ratio spread."""
-    return series_a / _safe_divisor(series_b)
+    return series_a / _safe_divisor(hedge_ratio * series_b)
 
 
-def calculate_log_ratio_spread(series_a: pd.Series, series_b: pd.Series) -> pd.Series:
+def calculate_log_ratio_spread(series_a: pd.Series, series_b: pd.Series, hedge_ratio: float = 1.0) -> pd.Series:
     """Calculate log price ratio spread."""
-    ratio = calculate_ratio_spread(series_a, series_b)
-    ratio = ratio.where(ratio > 0, np.nan)
-    return np.log(ratio)
+    log_a = np.log(series_a.where(series_a > 0, np.nan))
+    log_b = np.log(series_b.where(series_b > 0, np.nan))
+    return log_a - hedge_ratio * log_b
 
 
 def calculate_zscore_components(
@@ -36,11 +36,10 @@ def calculate_zscore_components(
 
     mean = spread.rolling(window=window, min_periods=window).mean()
     std = spread.rolling(window=window, min_periods=window).std()
-
     return mean, std, (spread - mean) / _safe_divisor(std)
 
 
-def calculate_zscore(spread: pd.Series, window: int = 60) -> pd.Series:
+def calculate_zscore(spread: pd.Series, window: int | None = 60) -> pd.Series:
     """
     Calculate z-score of the spread.
     
@@ -56,7 +55,7 @@ def calculate_zscore(spread: pd.Series, window: int = 60) -> pd.Series:
 
 
 def calculate_spread_metrics(df: pd.DataFrame, ticker_a: str, ticker_b: str, 
-                             spread_type: str = 'log_ratio', window: int = 60) -> Tuple[pd.DataFrame, Dict]:
+                             spread_type: str = 'log_ratio', hedge_ratio: float = 1.0, window: int = 60) -> Tuple[pd.DataFrame, Dict]:
     """
     Calculate spread and basic metrics for a pair of stocks.
     
@@ -65,6 +64,7 @@ def calculate_spread_metrics(df: pd.DataFrame, ticker_a: str, ticker_b: str,
         ticker_a: First ticker symbol
         ticker_b: Second ticker symbol
         spread_type: Type of spread ('difference', 'ratio', or 'log_ratio')
+        hedge_ratio: Ratio for hedging the B ticker
         
     Returns:
         Tuple of (result DataFrame, metrics dict)
@@ -72,18 +72,18 @@ def calculate_spread_metrics(df: pd.DataFrame, ticker_a: str, ticker_b: str,
     # Extract price series and ensure they're 1D
     series_a = df[f'Close_{ticker_a}'].squeeze()
     series_b = df[f'Close_{ticker_b}'].squeeze()
-
+ 
     if isinstance(series_a, pd.DataFrame):
         series_a = pd.Series(series_a.values.flatten(), index=df.index)
     if isinstance(series_b, pd.DataFrame):
         series_b = pd.Series(series_b.values.flatten(), index=df.index)
     
     if spread_type == 'difference':
-        spread = calculate_price_difference_spread(series_a, series_b)
+        spread = calculate_price_difference_spread(series_a, series_b, hedge_ratio)
     elif spread_type == 'ratio':
-        spread = calculate_ratio_spread(series_a, series_b)
+        spread = calculate_ratio_spread(series_a, series_b, hedge_ratio)
     elif spread_type == 'log_ratio':
-        spread = calculate_log_ratio_spread(series_a, series_b)
+        spread = calculate_log_ratio_spread(series_a, series_b, hedge_ratio)
     else:
         raise ValueError(f"Unknown spread_type: {spread_type}")
     

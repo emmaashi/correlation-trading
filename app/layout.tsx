@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ResearchShell from "@/components/strategy/ResearchShell";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -15,7 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark !scroll-smooth">
       <body className="min-h-screen bg-black text-neutral-50 antialiased">
-        {children}
+        <ResearchShell>{children}</ResearchShell>
       </body>
     </html>
   );

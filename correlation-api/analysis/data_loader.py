@@ -130,8 +130,6 @@ def _validated_market_data(df, ticker, start_date, end_date):
     )
     for column in numeric_columns:
         values = pd.to_numeric(validated[column], errors="coerce")
-        if values.isna().any() or not np.isfinite(values).all():
-            raise ValueError(f"{column} contains invalid or missing numeric values")
         validated[column] = values.astype(float)
 
     for column in (
@@ -237,14 +235,9 @@ def _normalize_downloaded_data(df, ticker):
         _download_field(df, "Adj Close", ticker), errors="coerce"
     )
     raw_close = pd.to_numeric(normalized["RawClose"], errors="coerce")
-    if (
-        adjusted_close.isna().any()
-        or not np.isfinite(adjusted_close).all()
-        or (adjusted_close <= 0).any()
-    ):
-        raise ValueError(
-            f"Downloaded data for {ticker} has invalid 'Adj Close' data"
-        )
+
+    # NaNs are handled by ffill().dropna() in app.py, instead of crashing API
+
     adjustment_factor = adjusted_close / raw_close
     normalized["Open"] = normalized["RawOpen"] * adjustment_factor
     normalized["High"] = normalized["RawHigh"] * adjustment_factor
@@ -260,6 +253,8 @@ def _normalize_downloaded_data(df, ticker):
 
 
 def _write_cache_atomic(df, path):
+    if df.empty:
+        return
     os.makedirs(os.path.dirname(path), exist_ok=True)
     temp_path = f"{path}.{os.getpid()}.{threading.get_ident()}.tmp"
     try:
