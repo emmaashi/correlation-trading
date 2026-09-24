@@ -435,6 +435,14 @@ def get_spread():
         df = load_pair_data(ticker_a, ticker_b, warmup_start, end)
         df = _valid_pair_rows(df, ticker_a, ticker_b)
 
+        if len(df) < window:
+            raise ValueError(
+                "At least "
+                f"{window} overlapping observations are required "
+                f"for window={window}; "
+                f"received {len(df)}"
+            )
+
         spread_df, metrics = calculate_spread_metrics(
             df,
             ticker_a,
