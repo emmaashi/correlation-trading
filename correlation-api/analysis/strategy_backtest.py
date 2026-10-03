@@ -21,6 +21,9 @@ ENTRY_Z = 2.0
 EXIT_Z = 0.5
 STOP_Z = 4.0
 SENSITIVITY_WINDOWS = (126, 252, 504)
+MAX_ADF_PVALUE = 0.05
+MIN_HALF_LIFE_DAYS = 2.0
+MAX_HALF_LIFE_DAYS = 30.0
 
 
 def _finite_float(value: Any) -> float | None:
@@ -104,6 +107,18 @@ def _position_direction(action: str) -> int:
     if action == "short_target":
         return -1
     return 0
+
+
+def _is_tradable(model: Dict[str, Any]) -> bool:
+    """Return whether the fitted residual looks mean-reverting enough to enter."""
+    adf_pvalue = _finite_float(model.get("adf_pvalue"))
+    half_life = _finite_float(model.get("half_life_days"))
+    if adf_pvalue is None or half_life is None:
+        return False
+    return (
+        adf_pvalue < MAX_ADF_PVALUE
+        and MIN_HALF_LIFE_DAYS <= half_life <= MAX_HALF_LIFE_DAYS
+    )
 
 
 def _signal_action(zscore: float | None) -> str:
@@ -208,6 +223,7 @@ def run_walk_forward_backtest(
     annual_borrow_rate: float = DEFAULT_ANNUAL_BORROW_RATE,
     participation_rate: float = DEFAULT_PARTICIPATION_RATE,
     rebalance_sessions: int = DEFAULT_REBALANCE_SESSIONS,
+    require_tradable: bool = True,
 ) -> Dict[str, Any]:
     normalized_target = str(target).strip().upper()
     normalized_peers = [str(peer).strip().upper() for peer in peers]
@@ -419,6 +435,12 @@ def run_walk_forward_backtest(
         reason = None
         if current_direction == 0:
             desired_direction = _position_direction(action)
+            if (
+                desired_direction != 0
+                and require_tradable
+                and not _is_tradable(model)
+            ):
+                desired_direction = 0
             if desired_direction != 0:
                 reason = "entry_signal"
         else:
